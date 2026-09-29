@@ -17,7 +17,7 @@ scripts/
 ├── indexing/                ← implementation import và indexing
 ├── evaluation/              ← implementation đánh giá dùng lại
 ├── index_embeddings.py      ← CLI sinh và lưu embedding vào PostgreSQL
-└── test_retrieval.py        ← CLI đánh giá HNSW (15 câu hỏi pháp lý)
+└── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
 
 tests/
 ├── test_retrieval.py      ← Unit tests cho HNSW Retriever (209 test cases)

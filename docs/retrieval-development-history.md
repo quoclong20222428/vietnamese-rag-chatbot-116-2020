@@ -22,7 +22,7 @@ Phương án nhúng tài liệu ban đầu chỉ biểu diễn mỗi chunk pháp
 
 Phương án này tạo nên một baseline truy xuất ngữ nghĩa hoạt động ổn định: các câu hỏi được diễn đạt bằng ngôn ngữ pháp lý tiếng Việt tự nhiên có thể truy xuất các đoạn pháp lý liên quan về mặt chủ đề. Tuy nhiên, vector nhúng không mã hóa tường minh vị trí của đoạn trích trong hệ thống phân cấp văn bản pháp luật — như thuộc văn bản, chương, điều, khoản hay điểm nào.
 
-**Chỉ số baseline văn bản thuần** (đo lường trên tập 15 câu hỏi đánh giá hiện tại, top-10, `ef_search=80`):
+**Chỉ số baseline văn bản thuần** (đo lường trên tập 15 câu hỏi đánh giá ban đầu ở giai đoạn thử nghiệm, top-10, `ef_search=80`):
 
 | Chỉ số | Giá trị |
 |---|---:|

@@ -94,10 +94,10 @@ Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts
 | Vector hóa BGE-M3 — 617/617 chunks, 1024 chiều | ✅ Hoàn thành |
 | Chỉ mục HNSW (`vector_cosine_ops`, m=16, ef_construction=64) | ✅ Hoàn thành |
 | Module Vector Retrieval (`scripts/retrievers/hnsw.py`) | ✅ Hoàn thành |
-| Đánh giá Retrieval (15 câu hỏi, ground truth phân cấp) | ✅ Hoàn thành |
+| Đánh giá Retrieval (EvalQueryV2 — 100 câu hỏi, ground truth phân cấp và chia mức) | ✅ Hoàn thành |
 | Bộ kiểm thử tự động — 91/91 tests passed (embedding + retrieval) | ✅ Hoàn thành |
 | Nhúng tài liệu nhận biết siêu dữ liệu (Metadata-aware) | ✅ Hoàn thành |
-| Đánh giá so sánh 5 mô hình embedding | ✅ Hoàn thành |
+| Đánh giá so sánh 6 mô hình embedding | ✅ Hoàn thành |
 | Tích hợp DeepX Embedding v1 (`dxtech-asia/deepx-embedding-v1`) | ✅ Hoàn thành |
 
 ---
@@ -121,24 +121,35 @@ Chi tiết đầy đủ: [Lịch sử phát triển Retrieval](docs/retrieval-de
 
 ## Kết quả đánh giá Retrieval
 
-Đánh giá thực hiện trên **15 câu hỏi pháp lý**, top-10, `ef_search=80`, metadata-aware embedding. Năm mô hình đã được tích hợp và đánh giá thành công. DeepX đã được tích hợp đầy đủ nhưng kết quả đánh giá thực tế trên bộ dữ liệu Nghị định 116 chưa có (cần chạy indexing với model thực).
+Đánh giá thực nghiệm được thực hiện trên tập benchmark chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 câu hỏi hợp lệ, 5 câu hỏi ngoài phạm vi OOS / không hợp lệ) trên toàn bộ 617 chunks pháp lý trong cơ sở dữ liệu NeonDB PostgreSQL (`pgvector`), sử dụng chỉ mục HNSW (`vector_cosine_ops`, `ef_search=80`, `top_k=10`).
 
-| Mô hình | Emb. time | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `BAAI/bge-m3` | 37.5s | **46.7%** | **53.3%** | **73.3%** | **40.0%** | **46.7%** | **66.7%** | **0.430** |
-| `mainguyen9/vietlegal-e5` | 52.6s | 33.3% | 40.0% | 53.3% | 33.3% | 36.7% | 50.0% | 0.278 |
-| `mainguyen9/vietlegal-harrier-0.6b` | 45.9s | 20.0% | 40.0% | 66.7% | 20.0% | 40.0% | 66.7% | 0.275 |
-| `darklethelong/vnlegal-lal` | 40.3s | 26.7% | 26.7% | 33.3% | 26.7% | 26.7% | 33.3% | 0.274 |
-| `jinaai/jina-embeddings-v3-hf` | 38.6s | 20.0% | 26.7% | 33.3% | 20.0% | 26.7% | 33.3% | 0.188 |
-| `dxtech-asia/deepx-embedding-v1` (DeepX-1024) | — | — | — | — | — | — | — | — |
+### Bảng kết quả tổng hợp 6 mô hình embedding
+
+Nguồn dữ liệu: 6 tệp log benchmark chính thức tại thư mục `logs/` (ngưỡng liên quan nhị phân `grade >= 2`, nDCG có trọng số đa mức `1, 2, 3`):
+
+| Mô hình | Alias | Chiều vector | Hit@3 | Hit@5 | Hit@10 | Recall@10 | MRR | nDCG@10 | Avg Top-1 Sim |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 1024 | **0.7158** | **0.7684** | **0.8632** | **0.5539** | **0.6027** | **0.4954** | 0.583023 |
+| `BAAI/bge-m3` | `bge-m3` | 1024 | 0.6526 | 0.7158 | 0.8316 | 0.5428 | 0.5733 | 0.4823 | 0.684919 |
+| `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | 0.4842 | 0.6421 | 0.7789 | 0.4594 | 0.4064 | 0.3499 | 0.667292 |
+| `darklethelong/vnlegal-lal` | `vnlegal-lal` | 1024 | 0.4526 | 0.5579 | 0.6632 | 0.3588 | 0.3749 | 0.3105 | **0.930506** |
+| `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | 0.4737 | 0.5368 | 0.6526 | 0.4052 | 0.4015 | 0.3460 | 0.720965 |
+| `dxtech-asia/deepx-embedding-v1` | `deepx` | 1024 | 0.1895 | 0.2105 | 0.2947 | 0.1071 | 0.1775 | 0.1214 | 0.463112 |
 
 **Nhận xét chính:**
-- Trong phạm vi tập đánh giá hiện tại, `BAAI/bge-m3` đạt kết quả truy xuất tổng thể cao nhất trong số năm mô hình đã được đánh giá, đặc biệt ở Recall@K và MRR.
-- `mainguyen9/vietlegal-harrier-0.6b` đạt Recall@10 tương đương BGE-M3 (66.7%), nhưng MRR thấp hơn, cho thấy các kết quả liên quan có xu hướng xuất hiện ở vị trí thấp hơn trong danh sách.
-- Các giá trị similarity không thể so sánh trực tiếp giữa các mô hình khác nhau — ưu tiên dùng Recall@K / Hit@K / MRR để so sánh mô hình.
-- **`dxtech-asia/deepx-embedding-v1` (DeepX) đã được tích hợp đầy đủ vào kiến trúc pipeline.** Kết quả đánh giá trên bộ dữ liệu Nghị định 116 sẽ được cập nhật sau khi chạy indexing thực tế. Điểm benchmark chính thức từ DeepX (nDCG@10 = 0.8162 trên Zalo Legal Text Retrieval) không phải là kết quả đánh giá của dự án này.
+- `mainguyen9/vietlegal-harrier-0.6b` và `BAAI/bge-m3` đạt hiệu năng truy xuất dẫn đầu toàn bảng: Hit@10 đạt trên 83-86%, Recall@10 đạt trên 54-55%, MRR đạt 0.57-0.60.
+- `mainguyen9/vietlegal-e5` đạt độ phủ Top-10 tốt (77.89%) nhưng MRR thấp hơn (0.4064) do các chunk liên quan thường xuất hiện ở vị trí sâu hơn.
+- `darklethelong/vnlegal-lal` có điểm tương đồng Top-1 trung bình cao nhất nhóm (**0.930506**), nhưng các chỉ số truy xuất thực tế lại ở mức trung bình thấp. Điểm tương đồng cosin tuyệt đối không được dùng làm thước đo xếp hạng giữa các mô hình khác nhau.
+- `dxtech-asia/deepx-embedding-v1` ghi nhận kết quả rất thấp trên bộ dữ liệu này (Hit@10 đạt 29.47%, Recall@10 đạt 10.71%).
 
-> Bộ đánh giá 15 câu hỏi phục vụ so sánh kỹ thuật trong giai đoạn phát triển. Các chỉ số không nên được hiểu là độ chính xác câu trả lời cuối cùng hay hiệu năng tổng quát trên diện rộng. Chi tiết: [Đánh giá Retrieval](docs/retrieval-evaluation.md).
+**Lệnh chạy đánh giá nhanh qua PowerShell:**
+```powershell
+conda activate chatbot
+$env:EMBEDDING_MODEL = "bge-m3"
+python scripts/test_retrieval.py --top-k 10 --ef-search 80
+```
+
+> Chi tiết đầy đủ về phương pháp luận, giải thích bản chất từng chỉ số và tham số kỹ thuật, ground truth phân cấp chia mức, phân tích chuyên sâu theo danh mục/độ khó và hướng dẫn tái lập xem tại: [Đánh giá Retrieval](docs/retrieval-evaluation.md).
 
 ---
 
@@ -163,7 +174,7 @@ scripts/
 ├── import_legal_data.py     ← CLI wrapper cho import_data
 ├── validate_legal_chunks.py ← CLI wrapper cho validation
 ├── index_embeddings.py      ← CLI wrapper cho indexing
-├── test_retrieval.py        ← CLI đánh giá HNSW (15 câu hỏi)
+├── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
 └── gpu_smoke_test.py
 tests/
 ├── test_embedding.py        ← 30 unit tests
@@ -192,4 +203,4 @@ data/
 | [DeepX Embedding v1](docs/deepx-embedding.md) | Tích hợp DeepX, cài đặt, cấu hình, cách dùng |
 | [Retrieval](docs/retrieval.md) | Kiến trúc, module, cách dùng, unit test |
 | [Lịch sử phát triển Retrieval](docs/retrieval-development-history.md) | Text-only → cải tiến đánh giá → metadata-aware |
-| [Đánh giá Retrieval](docs/retrieval-evaluation.md) | Phương pháp Hit@K/Recall@K/MRR, ground truth, kết quả |
+| [Đánh giá Retrieval](docs/retrieval-evaluation.md) | Phương pháp luận, định nghĩa chỉ số, điều kiện thực nghiệm, kết quả benchmark 6 mô hình và phân tích chuyên sâu |

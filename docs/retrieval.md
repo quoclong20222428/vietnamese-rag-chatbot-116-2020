@@ -58,7 +58,7 @@ scripts/
 ├── retrieval_types.py       ← hợp đồng kết quả dùng chung
 ├── embeddings/              ← embedding backends và model registry
 ├── evaluation/              ← dataset, matching, metrics, runner, reporting
-└── test_retrieval.py        ← CLI đánh giá HNSW với câu hỏi pháp lý
+└── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
 
 tests/
 ├── test_retrieval.py      ← Unit tests HNSW (209 test cases)
@@ -71,17 +71,18 @@ tests/
 ## Chạy đánh giá retrieval
 
 ```powershell
-# HNSW — chạy toàn bộ 15 câu hỏi đánh giá mặc định (top-5)
+# HNSW — chạy toàn bộ 100 câu hỏi trong EvalQueryV2 (mặc định top-10, ef_search=80)
 conda activate chatbot
-python scripts/test_retrieval.py
-
-# HNSW — tuỳ chỉnh top-K và ef_search
+$env:EMBEDDING_MODEL = "bge-m3"
 python scripts/test_retrieval.py --top-k 10 --ef-search 80
+
+# Chế độ ad-hoc chạy một câu hỏi đơn lẻ (không ghi log, không tính metrics)
+python scripts/test_retrieval.py --query "Điều kiện được hưởng chính sách hỗ trợ là gì?" --top-k 5
 ```
 
-CLI này nhận `--query TEXT`, `--top-k N` và `--ef-search N`. Nó không nhận tùy chọn method/model riêng: HNSW lấy model từ `EMBEDDING_MODEL` hoặc `.env` (mặc định BGE-M3). BM25 và HNSW có thể được gọi riêng từ implementation; hiện không có lệnh CLI để đánh giá BM25 hoặc so sánh hai phương pháp.
+CLI này nhận `--query TEXT`, `--top-k N` (mặc định 10), `--ef-search N` (mặc định 80), và `--min-grade G` (mặc định 2). Mô hình được chọn qua biến môi trường `EMBEDDING_MODEL` hoặc trong `.env` (mặc định `bge-m3`). Cột vector embedding tương ứng phải tồn tại trong cơ sở dữ liệu trước khi chạy đánh giá. BM25 và HNSW có thể được gọi riêng từ implementation; hiện không có lệnh CLI để đánh giá BM25 hoặc so sánh hai phương pháp.
 
-Kết quả retrieval evaluation được lưu tự động trong `logs/` với tên model, thời điểm chạy và hậu tố duy nhất. Không có biến `RETRIEVAL_TEST_OUTPUT` hay tùy chọn `--output-dir`.
+Kết quả retrieval evaluation đầy đủ được lưu tự động trong `logs/` với tên model, thời điểm chạy và hậu tố duy nhất theo chuẩn định dạng báo cáo V2.
 
 ---
 

@@ -91,16 +91,17 @@ EMBEDDING_MODEL=deepx
 # EMBEDDING_MODEL=dxtech-asia/deepx-embedding-v1
 ```
 
-### Cách 2: Thiết lập qua tham số dòng lệnh (CLI)
+### Cách 2: Thiết lập qua biến môi trường PowerShell
 
-Các script của hệ thống đều nhận tham số `--model`:
+Lệnh indexing nhận tham số `--model deepx`, còn lệnh đánh giá retrieval đọc cấu hình từ biến môi trường `EMBEDDING_MODEL`:
 
 ```powershell
 # Chạy indexing cho DeepX
 python scripts/index_embeddings.py --model deepx
 
 # Chạy retrieval kiểm tra với DeepX
-python scripts/test_retrieval.py --model deepx --top-k 10
+$env:EMBEDDING_MODEL = "deepx"
+python scripts/test_retrieval.py --top-k 10 --ef-search 80
 ```
 
 ---
@@ -125,16 +126,17 @@ Các tham số hữu ích:
 
 ## 6. Chạy Đánh giá Retrieval (Evaluation)
 
-Sau khi dữ liệu đã được index vào database, chạy quy trình benchmark đánh giá độ chính xác truy xuất (Recall@k, Hit@k, MRR) trên cùng 15 câu hỏi kiểm thử chuẩn:
+Sau khi dữ liệu đã được index vào database, chạy quy trình benchmark đánh giá độ chính xác truy xuất trên tập dữ liệu chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 answerable, 5 OOS/invalid):
 
 ```powershell
 conda activate chatbot
 
 # Đánh giá retrieval với DeepX
-python scripts/test_retrieval.py --model deepx --top-k 10 --ef-search 80
+$env:EMBEDDING_MODEL = "deepx"
+python scripts/test_retrieval.py --top-k 10 --ef-search 80
 ```
 
-Kết quả chi tiết cùng ma trận chẩn đoán sẽ được lưu tự động trong thư mục `logs/` theo định dạng `retrieval_eval_deepx_*.json` và `.txt`.
+Kết quả chi tiết được lưu tự động trong thư mục `logs/` theo định dạng `dxtech-asia_deepx-embedding-v1_<timestamp>_<random_suffix>.txt`.
 
 ---
 
@@ -159,10 +161,16 @@ Khi đánh giá hiệu năng của DeepX Embedding v1, cần phân định rõ r
 1. **Benchmark công bố trên Model Card Hugging Face:**
    - Do đơn vị phát triển DXTech Asia công bố trên các tập dữ liệu tổng quát (MTEB, đa lĩnh vực).
    - Thể hiện tiềm năng kỹ thuật của mô hình trên các bài toán chung và văn bản tiếng Việt quy mô lớn.
-2. **Đánh giá thực nghiệm trên Nghị định 116/2020/NĐ-CP của dự án:**
-   - Được đo lường trực tiếp trên 617 legal chunks có cấu trúc (Điều, Khoản, Điểm) và 15 câu hỏi nghiệp vụ đặc thù ngành sư phạm.
-   - Hiệu quả thực tế của mô hình (so sánh với baseline `BAAI/bge-m3`) chỉ được kết luận dựa trên kết quả chạy từ `scripts/test_retrieval.py`.
-   - Tuyệt đối không suy đoán hoặc khẳng định DeepX vượt trội hơn các mô hình khác khi chưa có dữ liệu benchmark đối sánh thực tế trên hệ thống.
+2. **Đánh giá thực nghiệm chính thức trên `EvalQueryV2` của dự án:**
+   - Được đo lường trực tiếp trên 617 legal chunks có cấu trúc và 95 câu hỏi hợp lệ trong `EvalQueryV2` (tệp log: `logs/dxtech-asia_deepx-embedding-v1_2026-09-29_10-54-33_7616.txt`).
+   - **Kết quả đo lường thực tế:**
+     * `Hit@3`: 0.1895 | `Hit@5`: 0.2105 | `Hit@10`: 0.2947
+     * `Recall@3`: 0.0752 | `Recall@5`: 0.0821 | `Recall@10`: 0.1071
+     * `Precision@3`: 0.0702 | `Precision@5`: 0.0484 | `Precision@10`: 0.0368
+     * `MRR`: 0.1775 | `nDCG@10`: 0.1214
+     * `Average Top-1 Similarity`: 0.463112
+     * Thời gian thực thi: 195.50s
+   - **Kết luận thực nghiệm:** Trong cấu hình hiện tại trên corpus pháp lý này, DeepX ghi nhận hiệu năng truy xuất thấp hơn đáng kể so với baseline `BAAI/bge-m3` và `mainguyen9/vietlegal-harrier-0.6b`. Hiệu quả thực tế phải căn cứ vào kết quả đo lường khách quan từ pipeline đánh giá chuẩn của dự án.
 
 ---
 

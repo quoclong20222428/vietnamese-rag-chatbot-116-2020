@@ -1,43 +1,34 @@
-"""Live retrieval evaluation script for the legal RAG chatbot.
+"""Live retrieval evaluation script for the legal RAG chatbot (EvalQueryV2).
 
-Runs a built-in set of Vietnamese legal questions through the Retriever and
-prints the ranked results so that a human can inspect retrieval quality.
-Optionally accepts an ad-hoc query via ``--query``.
+Runs the full EvalQueryV2 benchmark (100 queries) through the Retriever and
+produces a detailed ``.txt`` report under ``logs/``.
 
 Run from the repository root::
 
     conda activate chatbot
     python scripts/test_retrieval.py
-    python scripts/test_retrieval.py --query "Điều kiện hưởng hỗ trợ là gì?"
     python scripts/test_retrieval.py --top-k 10 --ef-search 80
 
-Purpose
+Dataset
 -------
-This script is NOT an automated pass/fail test.  Its purpose is to let a
-developer inspect whether the retrieved legal context is relevant for each
-query.  Retrieval quality must be assessed by a human familiar with the
-source documents (Nghị định 116/2020/NĐ-CP and related texts).
+The evaluation dataset is ``EvalQueryV2`` defined in
+``scripts/evaluation/eval_queries_v2.py``.  It contains 100 queries spanning
+six categories: exact, semantic, contextual, multi_chunk, multi_document,
+complex_qa, plus out_of_scope and invalid queries.
 
 Ground truth
 ------------
-Ground truth is expressed as a list of ``ExpectedSection`` entries, each
-specifying an exact ``document_title``, ``article``, and (optionally) one or
-more ``clauses``.  A retrieved chunk is a Ground Truth match only when ALL
-specified levels (document, article, and – if non-empty – clause) agree.
-This hierarchical structure prevents false positives such as the same article
-number appearing in a different document.
-
-Queries marked ``requires_verification`` have no confirmed expected section
-and must be assessed manually.
+Each answerable query specifies a ``relevant_chunks`` dict of
+``{chunk_id: grade}`` with grades 1-3:
+  3 = directly answers the query
+  2 = relevant / supporting information
+  1 = weakly relevant / context
 
 Metrics
 -------
-Hit@K, Recall@K, and MRR are only calculated for queries that have at least
-one verified ``ExpectedSection`` and ``requires_verification=False``.
-No metrics are fabricated for queries without ground truth.
-
-Recall@K counts each ExpectedSection once, even when multiple retrieved
-chunks satisfy the same section.
+Hit@K, Recall@K, Precision@K, and MRR use grade >= 2 as the relevance
+threshold (``min_grade=2``).  nDCG@K uses the full graded relevance.
+OOS and invalid queries are excluded from all metric aggregates.
 """
 
 from __future__ import annotations
@@ -58,32 +49,18 @@ ROOT = SCRIPTS_DIR.parent
 
 if __package__:
     from .environment import load_dotenv as _load_env_file, require_database_url
-    from .evaluation.dataset import EVAL_QUERIES, EvalQuery, ExpectedSection
-    from .evaluation.matching import _is_ground_truth_match, _is_legal_source, _matches_section
-    from .evaluation.metrics import compute_hit_at_k, compute_mrr, compute_recall_at_k
-    from .evaluation.runner import QueryEvalRecord, evaluate_query, run_evaluation
-    from .evaluation.reporting import (
-        _format_location,
-        _format_section_label,
-        _format_sections_for_display,
-        _get_embedding_representation_description,
-        _truncate,
-        render_full_report,
-    )
+    from .evaluation.eval_queries_v2 import EVAL_QUERIES_V2
+    from .evaluation.runner import QueryEvalRecordV2, run_evaluation_v2
+    from .evaluation.reporting import render_full_report_v2
+    from .evaluation.matching import _is_legal_source
+    from .evaluation.metrics import _get_chunk_id
 else:
     from environment import load_dotenv as _load_env_file, require_database_url
-    from evaluation.dataset import EVAL_QUERIES, EvalQuery, ExpectedSection
-    from evaluation.matching import _is_ground_truth_match, _is_legal_source, _matches_section
-    from evaluation.metrics import compute_hit_at_k, compute_mrr, compute_recall_at_k
-    from evaluation.runner import QueryEvalRecord, evaluate_query, run_evaluation
-    from evaluation.reporting import (
-        _format_location,
-        _format_section_label,
-        _format_sections_for_display,
-        _get_embedding_representation_description,
-        _truncate,
-        render_full_report,
-    )
+    from evaluation.eval_queries_v2 import EVAL_QUERIES_V2
+    from evaluation.runner import QueryEvalRecordV2, run_evaluation_v2
+    from evaluation.reporting import render_full_report_v2
+    from evaluation.matching import _is_legal_source
+    from evaluation.metrics import _get_chunk_id
 
 LOGGER = logging.getLogger("test_retrieval")
 
@@ -113,42 +90,24 @@ def _get_database_name(url: str) -> str:
         return "PostgreSQL"
 
 
-def _get_model_revision(retriever: Any) -> str:
-    try:
-        model_obj = getattr(retriever, "_embedding_model", None)
-        if model_obj is None:
-            return "N/A"
-        inner = getattr(model_obj, "_model", None)
-        if inner is None:
-            return "N/A"
-        hf_model = getattr(inner, "model", None)
-        if hf_model is not None and hasattr(hf_model, "config"):
-            cfg = hf_model.config
-            commit = getattr(cfg, "_commit_hash", None)
-            if commit:
-                return str(commit)
-            version = getattr(cfg, "transformers_version", None)
-            if version:
-                return f"transformers-{version}"
-    except Exception:
-        pass
-    return "N/A"
+def _get_model_metadata(retriever: Any) -> dict[str, Any]:
+    """Extract model metadata for report headers."""
+    em = getattr(retriever, "_embedding_model", None)
+    cfg = getattr(em, "config", None)
 
+    model_name = getattr(em, "model_name", "N/A") if em else "N/A"
+    model_alias = getattr(cfg, "alias", "N/A") if cfg else "N/A"
+    backend = getattr(cfg, "backend", "N/A") if cfg else "N/A"
+    embedding_column = getattr(cfg, "embedding_column", "N/A") if cfg else "N/A"
+    embedding_dim = getattr(em, "embedding_dim", 1024) if em else 1024
 
-def _get_env_versions() -> tuple[str, str, str]:
-    gpu_name = "N/A"
-    cuda_ver = "N/A"
-    torch_ver = "N/A"
-    try:
-        import torch  # noqa: PLC0415
-        torch_ver = str(torch.__version__)
-        if torch.cuda.is_available():
-            gpu_name = str(torch.cuda.get_device_name(0))
-            if hasattr(torch.version, "cuda") and torch.version.cuda:
-                cuda_ver = str(torch.version.cuda)
-    except Exception:
-        pass
-    return gpu_name, cuda_ver, torch_ver
+    return {
+        "model_name": model_name,
+        "model_alias": model_alias,
+        "backend": backend,
+        "embedding_column": embedding_column,
+        "embedding_dim": embedding_dim,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -159,31 +118,101 @@ def _get_env_versions() -> tuple[str, str, str]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Live retrieval evaluation for the legal RAG chatbot. "
-            "Runs built-in legal questions and prints ranked results."
+            "Retrieval evaluation against EvalQueryV2 for the legal RAG chatbot. "
+            "Use --query for a quick single-query lookup without metrics or a log file."
         )
     )
     parser.add_argument(
         "--query",
         default=None,
         metavar="TEXT",
-        help="Run a single ad-hoc query instead of the built-in evaluation set.",
+        help=(
+            "Run a single ad-hoc query and print the top-K results to the terminal. "
+            "No ground truth, no metrics, and no .txt file are generated."
+        ),
     )
     parser.add_argument(
         "--top-k",
         type=int,
-        default=5,
+        default=10,
         metavar="N",
-        help="Number of results to retrieve per query (default: 5).",
+        help="Number of results to retrieve per query (default: 10).",
     )
     parser.add_argument(
         "--ef-search",
         type=int,
-        default=40,
+        default=80,
         metavar="N",
-        help="HNSW ef_search value (default: 40).  Higher = better recall, slower.",
+        help="HNSW ef_search value (default: 80).  Higher = better recall, slower.",
+    )
+    parser.add_argument(
+        "--min-grade",
+        type=int,
+        default=2,
+        metavar="G",
+        help="Minimum relevance grade for Hit/Recall/Precision/MRR (default: 2).",
     )
     return parser.parse_args(argv)
+
+
+# ---------------------------------------------------------------------------
+# Ad-hoc single-query mode
+# ---------------------------------------------------------------------------
+
+
+def _run_adhoc_query(retriever: Any, query: str, top_k: int) -> int:
+    """Retrieve top-K results for *query* and print them; no metrics, no file."""
+    print()
+    print("=" * 60)
+    print("AD-HOC QUERY")
+    print("=" * 60)
+    print(f"Query:  {query}")
+    print(f"Top-K:  {top_k}")
+    print()
+
+    try:
+        results = retriever.retrieve(query, top_k=top_k)
+    except Exception as exc:
+        print(f"[ERROR] Retrieval failed: {exc}")
+        return 1
+
+    if not results:
+        print("(no results returned)")
+        return 0
+
+    for rank, result in enumerate(results, start=1):
+        chunk_id = _get_chunk_id(result) or "N/A"
+        score = getattr(result, "score", None)
+        score_str = f"{score:.6f}" if isinstance(score, (int, float)) else "N/A"
+        meta = getattr(result, "metadata", None) or {}
+        text = getattr(result, "text", "") or ""
+
+        print("-" * 60)
+        print(f"Rank {rank}")
+        print(f"Score:    {score_str}")
+        print(f"Chunk ID: {chunk_id}")
+
+        if _is_legal_source(meta):
+            if meta.get("document_title"):
+                print(f"Document: {meta['document_title']}")
+            if meta.get("article"):
+                print(f"Article:  {meta['article']}")
+            if meta.get("clause"):
+                print(f"Clause:   {meta['clause']}")
+            if meta.get("point"):
+                print(f"Point:    {meta['point']}")
+        else:
+            print("Source:   QA")
+
+        print()
+        print("Text:")
+        print(text)
+        print()
+
+    print("=" * 60)
+    print(f"Done.  {len(results)} result(s) returned.")
+    print("=" * 60)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -201,21 +230,33 @@ def main(argv: list[str] | None = None) -> int:
     start_time = datetime.now()
     cli_args_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "(default arguments)"
 
-    # logs_dir = ROOT / "logs"
-    # logs_dir.mkdir(parents=True, exist_ok=True)
-    # timestamp = start_time.strftime("%Y-%m-%d_%H-%M-%S")
-    # log_path = logs_dir / f"retrieval_{timestamp}.txt"
-    # if log_path.exists():
-    #     timestamp = start_time.strftime("%Y-%m-%d_%H-%M-%S_%f")
-    #     log_path = logs_dir / f"retrieval_{timestamp}.txt"
-
-    start_time = datetime.now()
-    cli_args_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "(default arguments)"
-
     logs_dir = ROOT / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    gpu_name, cuda_ver, torch_ver = _get_env_versions()
+    # ------------------------------------------------------------------
+    # Ad-hoc mode: single query, no metrics, no .txt file.
+    # ------------------------------------------------------------------
+    if args.query:
+        try:
+            database_url = _get_database_url()
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}")
+            return 1
+
+        try:
+            if __package__:
+                from .retrievers.hnsw import Retriever  # noqa: PLC0415
+            else:
+                from retrievers.hnsw import Retriever  # noqa: PLC0415
+        except ImportError as exc:
+            print(f"ERROR: Could not import retrieval module: {exc}")
+            return 1
+
+        retriever = Retriever(
+            database_url=database_url, ef_search=args.ef_search
+        )
+        return _run_adhoc_query(retriever, args.query, args.top_k)
+
 
     try:
         database_url = _get_database_url()
@@ -234,47 +275,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: Could not import retrieval module: {exc}")
         return 1
 
-    print("\n============================================================")
-    print("LEGAL RAG CHATBOT - RETRIEVAL EVALUATION")
-    print("============================================================")
+    print("\n" + "=" * 60)
+    print("RETRIEVAL EVALUATION (EvalQueryV2)")
+    print("=" * 60)
     print(f"Top-K:      {args.top_k}")
     print(f"ef_search:  {args.ef_search}")
+    print(f"min_grade:  {args.min_grade}")
+    print(f"Dataset:    EvalQueryV2 ({len(EVAL_QUERIES_V2)} queries)")
     print("INFO: Initialising retriever...")
 
     retriever = Retriever(database_url=database_url, ef_search=args.ef_search)
-    model_name = getattr(
-        retriever,
-        "model_name",
-        getattr(retriever._embedding_model, "model_name", "BAAI/bge-m3"),
-    )
+    model_meta = _get_model_metadata(retriever)
+    model_name = model_meta["model_name"]
+    model_alias = model_meta["model_alias"]
 
-    # Build a filesystem-safe model name.
+    # Build a filesystem-safe model name for the output file.
     safe_model_name = model_name.replace("/", "_").replace("\\", "_")
     safe_model_name = "_".join(safe_model_name.split())
 
-    # Filename format:
-    # <model_name>_<runtime>_<4-digit-random>.txt
     timestamp = start_time.strftime("%Y-%m-%d_%H-%M-%S")
     random_suffix = f"{randbelow(10000):04d}"
-
-    log_path = logs_dir / (
-        f"{safe_model_name}_{timestamp}_{random_suffix}.txt"
-    )
-
-    # Extremely unlikely collision protection.
+    log_path = logs_dir / f"{safe_model_name}_{timestamp}_{random_suffix}.txt"
     while log_path.exists():
         random_suffix = f"{randbelow(10000):04d}"
-        log_path = logs_dir / (
-            f"{safe_model_name}_{timestamp}_{random_suffix}.txt"
-        )
+        log_path = logs_dir / f"{safe_model_name}_{timestamp}_{random_suffix}.txt"
 
-    embedding_dim = getattr(retriever._embedding_model, "embedding_dim", 1024)
+    embedding_dim = model_meta["embedding_dim"]
     device = retriever.device
-    model_revision = _get_model_revision(retriever)
 
+    print(f"Model:            {model_name}")
     print(f"Embedding device: {device}")
-    if gpu_name != "N/A":
-        print(f"GPU: {gpu_name}")
 
     print("\n--- Database State ---")
     state = retriever.verify_database_state()
@@ -283,28 +313,18 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Missing embeddings: {state['missing_embeddings']}")
     print(f"HNSW index exists:  {state['hnsw_index_exists']}")
 
-    if args.query:
-        queries = [
-            EvalQuery(
-                query=args.query,
-                description="Ad-hoc query",
-                requires_verification=False,
-            )
-        ]
-    else:
-        queries = EVAL_QUERIES
-
+    queries = EVAL_QUERIES_V2
     print(f"\nRunning {len(queries)} evaluation queries...\n")
 
-    query_records: list[QueryEvalRecord] = []
+    query_records: list[QueryEvalRecordV2] = []
     metrics: dict[str, Any] = {}
-    retrieval_errors: list[tuple[int, str, str]] = []
     uncaught_exception: str | None = None
 
     try:
-        metrics = run_evaluation(queries, retriever, top_k=args.top_k)
+        metrics = run_evaluation_v2(
+            queries, retriever, top_k=args.top_k, min_grade=args.min_grade
+        )
         query_records = metrics.get("query_records", [])
-        retrieval_errors = metrics.get("errors", [])
     except BaseException as exc:
         if isinstance(exc, KeyboardInterrupt):
             uncaught_exception = "Evaluation was interrupted by user (KeyboardInterrupt)."
@@ -313,77 +333,50 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n[EXCEPTION] {exc}")
     finally:
         end_time = datetime.now()
-        report = render_full_report(
-            start_time=start_time,
-            end_time=end_time,
-            model_name=model_name,
-            model_revision=model_revision,
-            embedding_dim=embedding_dim,
-            device=device,
-            gpu_name=gpu_name,
-            cuda_version=cuda_ver,
-            pytorch_version=torch_ver,
-            database_name=database_name,
-            state=state,
-            ef_search=args.ef_search,
-            top_k=args.top_k,
-            cli_args_str=cli_args_str,
+        report = render_full_report_v2(
             query_records=query_records,
             metrics=metrics,
-            retrieval_errors=retrieval_errors,
+            model_name=model_name,
+            model_alias=model_alias,
+            embedding_dim=embedding_dim,
+            backend=model_meta["backend"],
+            embedding_column=model_meta["embedding_column"],
+            retriever="HNSW (pgvector)",
+            start_time=start_time,
+            end_time=end_time,
+            top_k=args.top_k,
+            ef_search=args.ef_search,
+            cli_args_str=cli_args_str,
+            state=state if 'state' in dir() else None,
+            database_name=database_name,
             uncaught_exception=uncaught_exception,
         )
         log_path.write_text(report, encoding="utf-8")
 
-    # Terminal summary display
-    print("\n============================================================")
-    print("AGGREGATE EVALUATION SUMMARY")
-    print("============================================================")
-    print(f"Total queries:                      {len(query_records)}")
-    print(f"Queries with verified ground truth: {metrics.get('evaluated_queries', 0)}")
+    # Terminal summary
+    print("\n" + "=" * 60)
+    print("AGGREGATE EVALUATION SUMMARY (EvalQueryV2)")
+    print("=" * 60)
+    print(f"Total queries:          {metrics.get('total_queries', len(query_records))}")
+    print(f"Answerable evaluated:   {metrics.get('evaluated_queries', 0)}")
+    print(f"OOS / Invalid:          {metrics.get('unanswerable_queries', 0)}")
     if metrics.get("evaluated_queries", 0) > 0:
-        print(f"Hit@3:     {metrics['Hit@3']:.3f}")
-        print(f"Hit@5:     {metrics['Hit@5']:.3f}")
-        print(f"Hit@10:    {metrics['Hit@10']:.3f}")
-        print(f"Recall@3:  {metrics['Recall@3']:.3f}")
-        print(f"Recall@5:  {metrics['Recall@5']:.3f}")
-        print(f"Recall@10: {metrics['Recall@10']:.3f}")
-        print(f"MRR:       {metrics['MRR']:.3f}")
+        for metric in (
+            "Hit@3", "Hit@5", "Hit@10",
+            "Recall@3", "Recall@5", "Recall@10",
+            "Precision@3", "Precision@5", "Precision@10",
+            "MRR", "nDCG@3", "nDCG@5", "nDCG@10",
+        ):
+            value = metrics.get(metric)
+            if value is not None:
+                print(f"{metric:<14}: {value:.4f}")
     if metrics.get("Average_top1_similarity") is not None:
-        print(f"Average top-1 similarity:          {metrics['Average_top1_similarity']:.6f}")
-    if metrics.get("Average_best_relevant_similarity") is not None:
-        print(f"Average best relevant similarity:   {metrics['Average_best_relevant_similarity']:.6f}")
+        print(f"Avg top-1 sim: {metrics['Average_top1_similarity']:.6f}")
 
-    print("\n============================================================")
-    print("QUERY RESULT OVERVIEW")
-    print("============================================================")
-    print(
-        f"{'Query':<5} | {'Ground Truth':<30} | {'GT Rank':<7} | {'Top-3':<5} | {'Top-5':<5} | {'Top-10':<6} | {'Top-1 Score':<11}"
-    )
-    print(
-        f"{'-'*5}-|-{'-'*30}-|-{'-'*7}-|-{'-'*5}-|-{'-'*5}-|-{'-'*6}-|-{'-'*11}"
-    )
-    for rec in query_records:
-        q_label = f"Q{rec.index:02d}"
-        if rec.query.requires_verification or not rec.query.expected_sections:
-            gt_label = "Manual"
-        else:
-            first = _format_section_label(rec.query.expected_sections[0])
-            extra = f" (+{len(rec.query.expected_sections)-1})" if len(rec.query.expected_sections) > 1 else ""
-            gt_label = first[:27] + "…" + extra if len(first) > 30 else first + extra
-        rank_label = str(rec.gt_rank) if rec.gt_rank is not None else "N/A"
-        t3_label = "N/A" if rec.in_top3 is None else ("YES" if rec.in_top3 else "NO")
-        t5_label = "N/A" if rec.in_top5 is None else ("YES" if rec.in_top5 else "NO")
-        t10_label = "N/A" if rec.in_top10 is None else ("YES" if rec.in_top10 else "NO")
-        score_label = f"{rec.best_score:.6f}" if rec.best_score is not None else "N/A"
-        print(
-            f"{q_label:<5} | {gt_label:<30} | {rank_label:<7} | {t3_label:<5} | {t5_label:<5} | {t10_label:<6} | {score_label:<11}"
-        )
-
-    print("\n============================================================")
+    print("\n" + "=" * 60)
     print("Evaluation completed.")
     print(f"Log saved to: logs/{log_path.name}")
-    print("============================================================")
+    print("=" * 60)
 
     if uncaught_exception:
         return 1
