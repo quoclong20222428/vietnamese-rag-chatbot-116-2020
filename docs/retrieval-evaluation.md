@@ -239,31 +239,30 @@ Toàn bộ 6 mô hình đều sinh vector **1024 chiều**, sử dụng độ đ
 | `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 1024 | `sentence_transformer` | `embedding_vietlegal_harrier` | `HNSW (pgvector)` | `neondb` | 10 | 80 |
 | `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | `sentence_transformer` | `embedding_vietlegal_e5` | `HNSW (pgvector)` | `neondb` | 10 | 80 |
 | `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | `jina` | `embedding_jina_v3` | `HNSW (pgvector)` | `neondb` | 10 | 80 |
-| `dxtech-asia/deepx-embedding-v1` | `deepx` | 1024 | `deepx` | `embedding_deepx` | `HNSW (pgvector)` | `neondb` | 10 | 80 |
 
 ---
 
 ## 7. Kết quả Thực nghiệm Tổng thể (Global Results)
 
-Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log chính thức trong thư mục `logs/` chạy trên tập 95 câu hỏi hợp lệ của `EvalQueryV2`:
+Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log chính thức trong thư mục `logs/` chạy trên tập 95 câu hỏi hợp lệ của `EvalQueryV2`:
 
-| Chỉ số | `BAAI/bge-m3` (`bge-m3`) | `darklethelong/vnlegal-lal` (`vnlegal-lal`) | `mainguyen9/vietlegal-harrier-0.6b` (`vietlegal-harrier`) | `mainguyen9/vietlegal-e5` (`vietlegal-e5`) | `jinaai/jina-embeddings-v3-hf` (`jina-v3`) | `dxtech-asia/deepx-embedding-v1` (`deepx`) |
-|---|---:|---:|---:|---:|---:|---:|
-| **Hit@3** | 0.6526 | 0.4526 | **0.7158** | 0.4842 | 0.4737 | 0.1895 |
-| **Hit@5** | 0.7158 | 0.5579 | **0.7684** | 0.6421 | 0.5368 | 0.2105 |
-| **Hit@10** | 0.8316 | 0.6632 | **0.8632** | 0.7789 | 0.6526 | 0.2947 |
-| **Recall@3** | 0.3738 | 0.2253 | **0.3749** | 0.2234 | 0.2605 | 0.0752 |
-| **Recall@5** | 0.4366 | 0.2694 | **0.4463** | 0.3330 | 0.3182 | 0.0821 |
-| **Recall@10** | 0.5428 | 0.3588 | **0.5539** | 0.4594 | 0.4052 | 0.1071 |
-| **Precision@3** | 0.3053 | 0.1789 | **0.3123** | 0.1895 | 0.2140 | 0.0702 |
-| **Precision@5** | 0.2189 | 0.1411 | **0.2358** | 0.1811 | 0.1642 | 0.0484 |
-| **Precision@10** | 0.1432 | 0.0989 | **0.1537** | 0.1253 | 0.1105 | 0.0368 |
-| **MRR** | 0.5733 | 0.3749 | **0.6027** | 0.4064 | 0.4015 | 0.1775 |
-| **nDCG@3** | 0.4276 | 0.2571 | **0.4325** | 0.2513 | 0.2895 | 0.1076 |
-| **nDCG@5** | 0.4370 | 0.2753 | **0.4524** | 0.3004 | 0.3101 | 0.1066 |
-| **nDCG@10** | 0.4823 | 0.3105 | **0.4954** | 0.3499 | 0.3460 | 0.1214 |
-| **Average Top-1 Similarity** | 0.684919 | **0.930506** | 0.583023 | 0.667292 | 0.720965 | 0.463112 |
-| **Thời gian thực thi benchmark** | 87.72s | 87.52s | 94.67s | 92.51s | 111.35s | 195.50s |
+| Chỉ số | `BAAI/bge-m3` (`bge-m3`) | `darklethelong/vnlegal-lal` (`vnlegal-lal`) | `mainguyen9/vietlegal-harrier-0.6b` (`vietlegal-harrier`) | `mainguyen9/vietlegal-e5` (`vietlegal-e5`) | `jinaai/jina-embeddings-v3-hf` (`jina-v3`) |
+|---|---:|---:|---:|---:|---:|
+| **Hit@3** | 0.6526 | 0.4526 | **0.7158** | 0.4842 | 0.4737 |
+| **Hit@5** | 0.7158 | 0.5579 | **0.7684** | 0.6421 | 0.5368 |
+| **Hit@10** | 0.8316 | 0.6632 | **0.8632** | 0.7789 | 0.6526 |
+| **Recall@3** | 0.3738 | 0.2253 | **0.3749** | 0.2234 | 0.2605 |
+| **Recall@5** | 0.4366 | 0.2694 | **0.4463** | 0.3330 | 0.3182 |
+| **Recall@10** | 0.5428 | 0.3588 | **0.5539** | 0.4594 | 0.4052 |
+| **Precision@3** | 0.3053 | 0.1789 | **0.3123** | 0.1895 | 0.2140 |
+| **Precision@5** | 0.2189 | 0.1411 | **0.2358** | 0.1811 | 0.1642 |
+| **Precision@10** | 0.1432 | 0.0989 | **0.1537** | 0.1253 | 0.1105 |
+| **MRR** | 0.5733 | 0.3749 | **0.6027** | 0.4064 | 0.4015 |
+| **nDCG@3** | 0.4276 | 0.2571 | **0.4325** | 0.2513 | 0.2895 |
+| **nDCG@5** | 0.4370 | 0.2753 | **0.4524** | 0.3004 | 0.3101 |
+| **nDCG@10** | 0.4823 | 0.3105 | **0.4954** | 0.3499 | 0.3460 |
+| **Average Top-1 Similarity** | 0.684919 | **0.930506** | 0.583023 | 0.667292 | 0.720965 |
+| **Thời gian thực thi benchmark** | 87.72s | 87.52s | 94.67s | 92.51s | 111.35s |
 
 ---
 
@@ -281,7 +280,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.8667** | **0.9333** | **1.0000** | 0.5944 | **0.7500** | **0.8500** | **0.8122** | **0.7453** |
 | `vietlegal-e5` | 0.6000 | 0.6667 | 0.8000 | 0.3389 | 0.4833 | 0.6167 | 0.4901 | 0.4839 |
 | `jina-v3` | 0.8000 | 0.8667 | 0.8667 | **0.6500** | 0.7167 | 0.7833 | 0.7356 | 0.7003 |
-| `deepx` | 0.2000 | 0.2000 | 0.2000 | 0.1056 | 0.1056 | 0.1056 | 0.1556 | 0.1160 |
 
 #### 2. Category: `semantic` (n = 20 câu - Ngôn ngữ tự nhiên / Diễn giải tương đương)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -291,7 +289,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | 0.6500 | 0.6500 | 0.7500 | 0.4583 | 0.4833 | **0.6333** | 0.5321 | 0.4979 |
 | `vietlegal-e5` | 0.4000 | 0.5000 | 0.7500 | 0.2667 | 0.3833 | 0.6167 | 0.3712 | 0.3846 |
 | `jina-v3` | 0.3500 | 0.4000 | 0.4500 | 0.2417 | 0.3333 | 0.3583 | 0.3354 | 0.3033 |
-| `deepx` | 0.1500 | 0.1500 | 0.2000 | 0.0917 | 0.0917 | 0.1083 | 0.1313 | 0.1147 |
 
 #### 3. Category: `contextual` (n = 25 câu - Ngữ cảnh chính sách / Điều kiện thi hành)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -301,7 +298,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.4800** | **0.5600** | 0.7200 | **0.3167** | **0.3533** | 0.4400 | 0.3840 | 0.3519 |
 | `vietlegal-e5` | 0.4400 | **0.5600** | 0.6400 | 0.2300 | 0.3200 | 0.3833 | 0.3278 | 0.2765 |
 | `jina-v3` | 0.2800 | 0.3200 | 0.5600 | 0.1267 | 0.1567 | 0.2900 | 0.1942 | 0.1725 |
-| `deepx` | 0.0800 | 0.0800 | 0.0800 | 0.0400 | 0.0400 | 0.0400 | 0.0800 | 0.0613 |
 
 #### 4. Category: `multi_chunk` (n = 15 câu - Yêu cầu nhiều đoạn trong cùng văn bản)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -311,7 +307,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.9333** | **1.0000** | **1.0000** | **0.2346** | **0.3302** | **0.4441** | **0.7911** | **0.5023** |
 | `vietlegal-e5` | 0.6000 | 0.8000 | **1.0000** | 0.1273 | 0.2006 | 0.3857 | 0.4973 | 0.3497 |
 | `jina-v3` | 0.6667 | 0.7333 | 0.8667 | 0.2213 | 0.3146 | 0.4124 | 0.5003 | 0.4088 |
-| `deepx` | 0.2667 | 0.3333 | 0.6000 | 0.0600 | 0.0822 | 0.1606 | 0.2769 | 0.1520 |
 
 #### 5. Category: `multi_document` (n = 10 câu - Liên kết xuyên văn bản)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -321,7 +316,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.8000** | **0.8000** | **1.0000** | 0.3333 | **0.4150** | **0.5092** | 0.6211 | **0.4933** |
 | `vietlegal-e5` | 0.5000 | **0.8000** | 0.9000 | 0.1317 | 0.2692 | 0.3475 | 0.4644 | 0.3000 |
 | `jina-v3` | 0.7000 | 0.7000 | 0.8000 | 0.2475 | 0.2475 | 0.3458 | 0.6167 | 0.3831 |
-| `deepx` | 0.4000 | 0.5000 | 0.6000 | 0.1075 | 0.1400 | 0.1600 | 0.3917 | 0.2202 |
 
 #### 6. Category: `complex_qa` (n = 10 câu - Câu hỏi tình huống tổng hợp)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -331,7 +325,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.8000** | **0.9000** | **0.9000** | **0.2767** | **0.3550** | **0.4450** | **0.6750** | **0.4656** |
 | `vietlegal-e5` | 0.4000 | 0.7000 | 0.7000 | 0.1833 | 0.3017 | 0.3217 | 0.3533 | 0.3128 |
 | `jina-v3` | 0.2000 | 0.4000 | 0.5000 | 0.1200 | 0.1700 | 0.2683 | 0.1876 | 0.2030 |
-| `deepx` | 0.2000 | 0.2000 | 0.4000 | 0.0750 | 0.0750 | 0.1417 | 0.1833 | 0.1483 |
 
 ### 8.2. Nhận xét thực nghiệm theo danh mục
 
@@ -355,7 +348,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.9000** | **0.9000** | **1.0000** | 0.6500 | 0.7500 | **0.8500** | **0.8600** | **0.8084** |
 | `vietlegal-e5` | 0.6000 | 0.7000 | 0.7000 | 0.4000 | 0.5500 | 0.5500 | 0.5250 | 0.5061 |
 | `jina-v3` | 0.7000 | 0.8000 | 0.8000 | 0.6000 | 0.7000 | 0.8000 | 0.6700 | 0.6863 |
-| `deepx` | 0.1000 | 0.1000 | 0.1000 | 0.1000 | 0.1000 | 0.1000 | 0.1000 | 0.1000 |
 
 #### 2. Mức độ: `medium` (n = 41 câu)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -365,7 +357,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.6829** | **0.7561** | 0.8293 | 0.3561 | 0.4280 | 0.5232 | 0.5844 | 0.4744 |
 | `vietlegal-e5` | 0.4634 | 0.6098 | 0.8293 | 0.1919 | 0.2923 | 0.5195 | 0.3940 | 0.3561 |
 | `jina-v3` | 0.4634 | 0.5122 | 0.6098 | 0.2565 | 0.3081 | 0.3789 | 0.4060 | 0.3404 |
-| `deepx` | 0.1463 | 0.1707 | 0.2683 | 0.0516 | 0.0598 | 0.0890 | 0.1334 | 0.0969 |
 
 #### 3. Mức độ: `hard` (n = 44 câu)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -375,7 +366,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 | `vietlegal-harrier` | **0.7045** | **0.7500** | **0.8636** | **0.3300** | **0.3944** | **0.5152** | **0.5613** | **0.4438** |
 | `vietlegal-e5` | 0.4773 | 0.6591 | 0.7500 | 0.2127 | 0.3216 | 0.3828 | 0.3910 | 0.3086 |
 | `jina-v3` | 0.4318 | 0.5000 | 0.6591 | 0.1870 | 0.2408 | 0.3400 | 0.3363 | 0.2740 |
-| `deepx` | 0.2500 | 0.2727 | 0.3636 | 0.0915 | 0.0989 | 0.1256 | 0.2362 | 0.1490 |
 
 ### 9.2. Nhận xét thực nghiệm theo độ khó
 
@@ -395,7 +385,7 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 
 ### Kết quả đo lường từ log benchmark
 
-* **Số lượng kết quả trả về**: Cả 6 mô hình đều trả về đủ 10 chunks cho mỗi truy vấn (tổng cộng 50 kết quả cho 5 câu).
+* **Số lượng kết quả trả về**: Cả 5 mô hình đều trả về đủ 10 chunks cho mỗi truy vấn (tổng cộng 50 kết quả cho 5 câu).
 * **Số lỗi runtime / ngoại lệ**: 0 lỗi trên toàn bộ các mô hình.
 * **Top-1 Chunk trả về**: Hệ thống luôn trả về các đoạn trích có vector gần nhất trong 617 chunks hiện có (ví dụ với BGE-M3, câu hỏi giá vàng trả về `60-2025-ND-CP-dieu-3-khoan-2`, câu hỏi luật lao động trả về `LUAT-GIAO-DUC-2019-dieu-65-khoan-3`).
 * **Hàm ý kiến trúc quan trọng (Abstention Requirement)**:
@@ -406,7 +396,7 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
 
 ## 11. Diễn giải Kết quả, Cảnh báo Điểm tương đồng và Giới hạn
 
-### 11.1. So sánh đa chiều giữa 6 mô hình
+### 11.1. So sánh đa chiều giữa 5 mô hình
 
 1. **`mainguyen9/vietlegal-harrier-0.6b` (Mô hình tối ưu cho xếp hạng đỉnh)**:
    * Đạt hiệu năng tổng thể cao nhất: Hit@10 = **0.8632**, Recall@10 = **0.5539**, MRR = **0.6027**, nDCG@10 = **0.4954**.
@@ -422,8 +412,6 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 6 tệp log ch
    * Hiệu năng ở mức trung bình đồng đều (Hit@10 = **0.6526**, Recall@10 = **0.4052**, MRR = **0.4015**).
 5. **`darklethelong/vnlegal-lal`**:
    * Hit@10 đạt **0.6632**, Recall@10 đạt **0.3588**, MRR đạt **0.3749**. Điểm tương đồng cao bất thường phản ánh không gian vector co cụm.
-6. **`dxtech-asia/deepx-embedding-v1`**:
-   * Hiệu năng rất thấp trên ngữ liệu kiểm thử này (Hit@10 = **0.2947**, Recall@10 = **0.1071**, MRR = **0.1775**), thời gian chạy kéo dài 195.50s, không khuyến nghị sử dụng.
 
 ### 11.2. Cảnh báo nghiêm ngặt về Điểm tương đồng (Similarity Score)
 
@@ -481,11 +469,6 @@ python scripts/test_retrieval.py --top-k 10 --ef-search 80
 # (Tiền đề: python scripts/index_embeddings.py --model jina-v3)
 $env:EMBEDDING_MODEL = "jina-v3"
 python scripts/test_retrieval.py --top-k 10 --ef-search 80
-
-# --- 6. Đánh giá dxtech-asia/deepx-embedding-v1 ---
-# (Tiền đề: python scripts/index_embeddings.py --model deepx)
-$env:EMBEDDING_MODEL = "deepx"
-python scripts/test_retrieval.py --top-k 10 --ef-search 80
 ```
 
 Báo cáo kết quả chi tiết từng câu hỏi và tổng hợp sẽ được ghi tự động vào thư mục `logs/` theo định dạng `<model_prefix>_<timestamp>_<random_suffix>.txt`.
@@ -506,5 +489,4 @@ python scripts/test_retrieval.py --query "Điều kiện để được miễn b
 * [Kiến trúc tầng Retrieval](retrieval.md)
 * [Lịch sử phát triển tầng Retrieval](retrieval-development-history.md)
 * [Hướng dẫn chuyển đổi mô hình embedding](embedding-model-switching.md)
-* [Tài liệu DeepX Embedding v1](deepx-embedding.md)
 * [Quay lại README](../README.md)

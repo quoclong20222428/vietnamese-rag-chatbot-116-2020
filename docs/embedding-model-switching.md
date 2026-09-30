@@ -28,7 +28,6 @@ similarity** để tìm kiếm.
 | `vietlegal-harrier` | `mainguyen9/vietlegal-harrier-0.6b` | SentenceTransformer | 512 | Dựa trên Microsoft Harrier 0.6B. |
 | `vietlegal-e5` | `mainguyen9/vietlegal-e5` | SentenceTransformer | 512 | E5, yêu cầu prefix `query:`/`passage:`. |
 | `jina-v3` | `jinaai/jina-embeddings-v3-hf` | Jina (LoRA) | 8192 | LoRA adapter riêng cho query/passage. |
-| `deepx` | `dxtech-asia/deepx-embedding-v1` | DeepX (deepx_embed) | 8192 | GDN-2 linear-attention, Matryoshka 1024d. |
 
 ---
 
@@ -85,9 +84,9 @@ python scripts/test_retrieval.py
    scripts/embeddings/embedding.py       ← Chọn backend phù hợp
    ┌────┼────┬─────┐
    ▼    ▼    ▼     ▼
-  BGE  ST  Jina  DeepX  ← 4 backend
-   │    │    │     │
-   └────┼────┴─────┘
+   BGE  ST  Jina  ← 3 backend
+   │    │    │
+   └────┼────┘
         ▼
   embed_query()        ← Mã hoá query (có prefix/LoRA nếu cần)
   embed_documents()    ← Mã hoá document (có prefix/LoRA nếu cần)
@@ -100,7 +99,6 @@ python scripts/test_retrieval.py
   │ embedding_vietlegal_harrier    │
   │ embedding_vietlegal_e5         │
   │ embedding_jina_v3              │
-  │ embedding_deepx                │
   └─────────────────────────────────┘
 ```
 
@@ -125,7 +123,6 @@ Mỗi mô hình có giao thức mã hoá riêng, được xử lý tự động:
 | VietLegal-Harrier | Gọi `encode()` trực tiếp | Gọi `encode()` trực tiếp |
 | VietLegal-E5 | Thêm prefix `"query: "` | Thêm prefix `"passage: "` |
 | Jina v3 | LoRA adapter `retrieval.query` | LoRA adapter `retrieval.passage` |
-| DeepX | `DeepXEmbed.encode(truncate_dim=1024)` | `DeepXEmbed.encode(truncate_dim=1024)` |
 
 ### Kiểm tra chiều (dimension validation)
 
@@ -199,25 +196,8 @@ refactor.  Tất cả mô hình khác dùng prefix `embedding_<alias>`.
 ### Q: Tôi cần cài thêm thư viện nào?
 
 - Cho BGE-M3: `pip install FlagEmbedding`
-- Cho các mô hình khác (trừ DeepX): `pip install sentence-transformers>=3.0.0`
-- Cho DeepX: `pip install git+https://github.com/dx-tech-ai/deepx-embed.git`
+- Cho các mô hình khác: `pip install sentence-transformers>=3.0.0`
 - Hoặc: `pip install -r requirements.txt`
-
-### Q: Tại sao DeepX không dùng SentenceTransformer backend?
-
-DeepX sử dụng kiến trúc **Gated DeltaNet-2 (GDN-2)** tùy chỉnh hoàn toàn,
-chưa được đăng ký trong `transformers` AutoModel registry.  File `config.json`
-của model không có `auto_map`, nên `SentenceTransformer("dxtech-asia/...")`
-sẽ báo lỗi:
-
-```
-The checkpoint ... has model type 'deepx-embedding' but
-Transformers does not recognize this architecture.
-```
-
-Giải pháp là dùng package chính thức `deepx_embed` (`DeepXEmbed.from_pretrained`)
-bỏ qua hoàn toàn `SentenceTransformer`.  Điều này không thay đổi phiên bản
-`transformers` hay `sentence-transformers` đã cài.
 
 ### Q: Lệnh `--rebuild` làm gì?
 

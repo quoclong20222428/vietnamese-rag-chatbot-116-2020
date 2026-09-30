@@ -210,7 +210,7 @@ conda activate chatbot
 python -m pytest tests/ -v
 ```
 
-Suite kiểm tra implementation của embedding, HNSW, BM25 và DeepX; một số integration check có thể cần cấu hình riêng.
+Suite kiểm tra implementation của embedding, HNSW và BM25; một số integration check có thể cần cấu hình riêng.
 
 ---
 

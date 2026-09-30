@@ -76,7 +76,7 @@ Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts
 | Thành phần | Công nghệ |
 |---|---|
 | Cơ sở dữ liệu | PostgreSQL + pgvector |
-| Mô hình nhúng | `BAAI/bge-m3` (mặc định), `dxtech-asia/deepx-embedding-v1` (DeepX), và 4 mô hình khác |
+| Mô hình nhúng | `BAAI/bge-m3` (mặc định) và 4 mô hình khác |
 | Chỉ mục vector | HNSW — Hierarchical Navigable Small World: cấu trúc chỉ mục tìm kiếm vector tương đồng nhanh |
 | Tìm kiếm Trigram | `pg_trgm` (đã có sẵn trong schema) |
 | Ngôn ngữ | Python (môi trường Conda `chatbot`) |
@@ -97,8 +97,7 @@ Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts
 | Đánh giá Retrieval (EvalQueryV2 — 100 câu hỏi, ground truth phân cấp và chia mức) | ✅ Hoàn thành |
 | Bộ kiểm thử tự động — 91/91 tests passed (embedding + retrieval) | ✅ Hoàn thành |
 | Nhúng tài liệu nhận biết siêu dữ liệu (Metadata-aware) | ✅ Hoàn thành |
-| Đánh giá so sánh 6 mô hình embedding | ✅ Hoàn thành |
-| Tích hợp DeepX Embedding v1 (`dxtech-asia/deepx-embedding-v1`) | ✅ Hoàn thành |
+| Đánh giá so sánh 5 mô hình embedding | ✅ Hoàn thành |
 
 ---
 
@@ -123,9 +122,9 @@ Chi tiết đầy đủ: [Lịch sử phát triển Retrieval](docs/retrieval-de
 
 Đánh giá thực nghiệm được thực hiện trên tập benchmark chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 câu hỏi hợp lệ, 5 câu hỏi ngoài phạm vi OOS / không hợp lệ) trên toàn bộ 617 chunks pháp lý trong cơ sở dữ liệu NeonDB PostgreSQL (`pgvector`), sử dụng chỉ mục HNSW (`vector_cosine_ops`, `ef_search=80`, `top_k=10`).
 
-### Bảng kết quả tổng hợp 6 mô hình embedding
+### Bảng kết quả tổng hợp 5 mô hình embedding
 
-Nguồn dữ liệu: 6 tệp log benchmark chính thức tại thư mục `logs/` (ngưỡng liên quan nhị phân `grade >= 2`, nDCG có trọng số đa mức `1, 2, 3`):
+Nguồn dữ liệu: 5 tệp log benchmark chính thức tại thư mục `logs/` (ngưỡng liên quan nhị phân `grade >= 2`, nDCG có trọng số đa mức `1, 2, 3`):
 
 | Mô hình | Alias | Chiều vector | Hit@3 | Hit@5 | Hit@10 | Recall@10 | MRR | nDCG@10 | Avg Top-1 Sim |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -134,13 +133,11 @@ Nguồn dữ liệu: 6 tệp log benchmark chính thức tại thư mục `logs/
 | `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | 0.4842 | 0.6421 | 0.7789 | 0.4594 | 0.4064 | 0.3499 | 0.667292 |
 | `darklethelong/vnlegal-lal` | `vnlegal-lal` | 1024 | 0.4526 | 0.5579 | 0.6632 | 0.3588 | 0.3749 | 0.3105 | **0.930506** |
 | `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | 0.4737 | 0.5368 | 0.6526 | 0.4052 | 0.4015 | 0.3460 | 0.720965 |
-| `dxtech-asia/deepx-embedding-v1` | `deepx` | 1024 | 0.1895 | 0.2105 | 0.2947 | 0.1071 | 0.1775 | 0.1214 | 0.463112 |
 
 **Nhận xét chính:**
 - `mainguyen9/vietlegal-harrier-0.6b` và `BAAI/bge-m3` đạt hiệu năng truy xuất dẫn đầu toàn bảng: Hit@10 đạt trên 83-86%, Recall@10 đạt trên 54-55%, MRR đạt 0.57-0.60.
 - `mainguyen9/vietlegal-e5` đạt độ phủ Top-10 tốt (77.89%) nhưng MRR thấp hơn (0.4064) do các chunk liên quan thường xuất hiện ở vị trí sâu hơn.
 - `darklethelong/vnlegal-lal` có điểm tương đồng Top-1 trung bình cao nhất nhóm (**0.930506**), nhưng các chỉ số truy xuất thực tế lại ở mức trung bình thấp. Điểm tương đồng cosin tuyệt đối không được dùng làm thước đo xếp hạng giữa các mô hình khác nhau.
-- `dxtech-asia/deepx-embedding-v1` ghi nhận kết quả rất thấp trên bộ dữ liệu này (Hit@10 đạt 29.47%, Recall@10 đạt 10.71%).
 
 **Lệnh chạy đánh giá nhanh qua PowerShell:**
 ```powershell
@@ -200,7 +197,6 @@ data/
 | [Cơ sở dữ liệu & Import](docs/database-and-import.md) | Schema `init.sql`, import, xác minh DB |
 | [Embedding & Indexing](docs/embedding-and-indexing.md) | BGE-M3, HNSW, cấu hình, kết quả indexing |
 | [Chuyển đổi mô hình Embedding](docs/embedding-model-switching.md) | Hướng dẫn chuyển đổi giữa các mô hình embedding |
-| [DeepX Embedding v1](docs/deepx-embedding.md) | Tích hợp DeepX, cài đặt, cấu hình, cách dùng |
 | [Retrieval](docs/retrieval.md) | Kiến trúc, module, cách dùng, unit test |
 | [Lịch sử phát triển Retrieval](docs/retrieval-development-history.md) | Text-only → cải tiến đánh giá → metadata-aware |
 | [Đánh giá Retrieval](docs/retrieval-evaluation.md) | Phương pháp luận, định nghĩa chỉ số, điều kiện thực nghiệm, kết quả benchmark 6 mô hình và phân tích chuyên sâu |

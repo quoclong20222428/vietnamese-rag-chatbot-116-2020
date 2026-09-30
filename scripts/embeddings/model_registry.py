@@ -65,7 +65,7 @@ class ModelConfig:
 
     model_id: str
     alias: str
-    backend: str  # "bge", "sentence_transformer", "jina", "deepx"
+    backend: str  # "bge", "sentence_transformer", "jina"
     dimension: int = 1024
     max_seq_length: int = 512
     query_prefix: str = ""
@@ -152,21 +152,7 @@ _MODELS: list[ModelConfig] = [
         query_prompt_name="retrieval.query",
         document_prompt_name="retrieval.passage",
     ),
-    # 6. dxtech-asia/deepx-embedding-v1 — dedicated DeepX backend via
-    #    the deepx_embed package (DeepXEmbed.from_pretrained).  The model
-    #    uses a custom Gated DeltaNet-2 architecture not registered in the
-    #    transformers AutoModel registry, so the generic sentence_transformer
-    #    backend cannot be used.  Matryoshka truncation to 1024d is applied
-    #    at encode time via DeepXEmbed.encode(truncate_dim=1024).
-    #    Requires: pip install git+https://github.com/dx-tech-ai/deepx-embed.git
-    ModelConfig(
-        model_id="dxtech-asia/deepx-embedding-v1",
-        alias="deepx",
-        backend="deepx",
-        dimension=1024,
-        max_seq_length=8192,
-        trust_remote_code=True,
-    ),
+
 ]
 
 # Build lookup dicts: alias → config AND model_id → config.

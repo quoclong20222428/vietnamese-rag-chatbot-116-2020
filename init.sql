@@ -78,9 +78,6 @@ ALTER TABLE legal_chunks
 ALTER TABLE legal_chunks
 	ADD COLUMN IF NOT EXISTS embedding_jina_v3 vector(1024);
 
--- 6. dxtech-asia/deepx-embedding-v1
-ALTER TABLE legal_chunks
-	ADD COLUMN IF NOT EXISTS embedding_deepx vector(1024);
 
 CREATE TABLE IF NOT EXISTS legal_chunk_references (
 	reference_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -286,9 +283,5 @@ CREATE INDEX IF NOT EXISTS legal_chunks_embedding_jina_v3_hnsw_idx
 	ON legal_chunks USING hnsw (embedding_jina_v3 vector_cosine_ops)
 	WITH (m = 16, ef_construction = 64);
 
--- 6. dxtech-asia/deepx-embedding-v1
-CREATE INDEX IF NOT EXISTS legal_chunks_embedding_deepx_hnsw_idx
-	ON legal_chunks USING hnsw (embedding_deepx vector_cosine_ops)
-	WITH (m = 16, ef_construction = 64);
 
 COMMIT;

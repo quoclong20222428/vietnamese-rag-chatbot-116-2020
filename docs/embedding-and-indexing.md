@@ -1,4 +1,4 @@
-# Embedding và Indexing (Vector hóa)
+﻿# Embedding và Indexing (Vector hóa)
 
 Tài liệu này mô tả giai đoạn sinh vector nhúng (embedding) cho toàn bộ legal chunks và tạo chỉ mục HNSW trên PostgreSQL với pgvector.
 
@@ -184,7 +184,7 @@ conda activate chatbot
 python -m pytest tests/test_embedding.py -v
 ```
 
-Toàn bộ test suite (**91/91 test cases**) xác minh tính toàn vẹn của logic nhúng, kiểm tra kích thước vector, xử lý batch và cơ chế tương thích schema. Bao gồm các test cho tất cả 6 mô hình: BGE-M3, vnlegal-lal, vietlegal-harrier, vietlegal-e5, Jina v3, và **DeepX**. Không yêu cầu model hay DB thật.
+Toàn bộ test suite (**91/91 test cases**) xác minh tính toàn vẹn của logic nhúng, kiểm tra kích thước vector, xử lý batch và cơ chế tương thích schema. Bao gồm các test cho tất cả 5 mô hình: BGE-M3, vnlegal-lal, vietlegal-harrier, vietlegal-e5, Jina v3. Không yêu cầu model hay DB thật.
 
 ---
 
@@ -193,7 +193,6 @@ Toàn bộ test suite (**91/91 test cases**) xác minh tính toàn vẹn của l
 - [Chuẩn bị dữ liệu](data-preparation.md)
 - [Cơ sở dữ liệu và Import](database-and-import.md)
 - [Chuyển đổi mô hình Embedding](embedding-model-switching.md)
-- [DeepX Embedding v1](deepx-embedding.md)
 - [Retrieval](retrieval.md)
 - [Lịch sử phát triển Retrieval](retrieval-development-history.md)
 - [Quay lại README](../README.md)

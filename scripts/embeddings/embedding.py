@@ -16,27 +16,6 @@ Supported backends
 ``jina``
     jinaai/jina-embeddings-v3 via ``sentence-transformers`` with
     task-specific LoRA adapters.
-``deepx``
-    dxtech-asia/deepx-embedding-v1 via the ``deepx_embed`` package
-    (``DeepXEmbed.from_pretrained``).  This model uses a fully custom
-    Gated DeltaNet-2 linear-attention architecture that is NOT registered
-    in the ``transformers`` AutoModel registry.  Attempting to load it
-    through the generic ``SentenceTransformer`` constructor therefore
-    fails with an "architecture not recognised" error, regardless of
-    ``trust_remote_code``.  The dedicated ``_DeepXBackend`` bypasses
-    ``SentenceTransformer`` entirely and uses the official
-    ``deepx_embed.DeepXEmbed`` API.  Matryoshka truncation to 1024
-    dimensions is requested directly from the model via
-    ``DeepXEmbed.encode(truncate_dim=1024)``.
-
-    Dependency: ``pip install git+https://github.com/dx-tech-ai/deepx-embed.git``
-    (does not change the installed ``transformers`` or
-    ``sentence-transformers`` versions).
-
-The module also exposes :func:`build_embedding_text`, which constructs the
-string sent to the model for each chunk.  This function is
-**model-independent** — it formats the metadata-aware representation
-regardless of which backend is active.
 
 Usage::
 
@@ -297,7 +276,7 @@ class _SentenceTransformerBackend(_EmbeddingBackend):
     Handles via configuration:
 
     - Query/document text prefixes (E5 models)
-    - ``trust_remote_code`` (DeepX and others)
+    - ``trust_remote_code``
     - Matryoshka dimension truncation (when native dim > required 1024)
     """
 
@@ -478,195 +457,7 @@ class _JinaBackend(_EmbeddingBackend):
         return "task"
 
 
-# ---------------------------------------------------------------------------
-# DeepX backend (deepx_embed package — official DeepXEmbed API)
-# ---------------------------------------------------------------------------
 
-
-class _DeepXBackend(_EmbeddingBackend):
-    """Backend for dxtech-asia/deepx-embedding-v1 via the ``deepx_embed`` package.
-
-    Why a dedicated backend?
-    ~~~~~~~~~~~~~~~~~~~~~~~~
-    DeepX uses a fully custom Gated DeltaNet-2 linear-attention architecture
-    (``model_type = "deepx-embedding"``) that is NOT registered in the
-    ``transformers`` AutoModel class registry.  Its ``config.json`` contains
-    no ``auto_map`` entry, so ``AutoModel.from_pretrained(...,
-    trust_remote_code=True)`` — which is what the generic
-    ``_SentenceTransformerBackend`` ultimately calls — raises:
-
-        "The checkpoint ... has model type 'deepx-embedding' but
-         Transformers does not recognize this architecture."
-
-    The solution is to bypass ``SentenceTransformer`` entirely and load the
-    model through its own package (``deepx_embed.DeepXEmbed``).
-
-    Dimension guarantee
-    ~~~~~~~~~~~~~~~~~~~
-    DeepX natively produces 1536-dimensional vectors.  Matryoshka truncation
-    to 1024 dimensions is requested at encode time via
-    ``DeepXEmbed.encode(truncate_dim=1024)``.  The final
-    ``EmbeddingModel._validate_dimension()`` call acts as a safety net.
-
-    Batching
-    ~~~~~~~~
-    If the ``DeepXEmbed.encode()`` signature does not accept a ``batch_size``
-    parameter, batching is performed manually inside this backend so that
-    the project-level ``--batch-size`` CLI option is always respected:
-    input ordering is preserved, and the model is loaded only once.
-
-    CUDA
-    ~~~~
-    The existing ``_detect_device()`` helper determines the device.  The
-    device is forwarded to ``DeepXEmbed.from_pretrained`` (when supported).
-    """
-
-    def __init__(self, config, *, use_fp16: bool = True) -> None:
-        try:
-            from deepx_embed import DeepXEmbed  # type: ignore[import]
-        except ImportError as exc:
-            raise ImportError(
-                "deepx_embed is not installed.  "
-                "Run: pip install git+https://github.com/dx-tech-ai/deepx-embed.git"
-            ) from exc
-
-        self._config = config
-        device = _detect_device()
-        self._device = device
-
-        LOGGER.info("Embedding model: %s", config.model_id)
-        LOGGER.info("Backend: DeepX")
-        LOGGER.info("Device: %s", device)
-        if device == "cuda":
-            _log_gpu_info()
-        else:
-            LOGGER.info("CUDA unavailable; using CPU")
-
-        # Build keyword arguments accepted by DeepXEmbed.from_pretrained.
-        load_kwargs: dict = {}
-        try:
-            import inspect as _inspect  # noqa: PLC0415
-            sig = _inspect.signature(DeepXEmbed.from_pretrained)
-            if "device" in sig.parameters:
-                load_kwargs["device"] = device
-        except (ValueError, TypeError):
-            pass
-
-        # In transformers >= 4.47, AutoTokenizer.from_pretrained encounters an
-        # upstream issue with rope_scaling in custom architectures
-        # ('PreTrainedConfig' object has no attribute 'max_position_embeddings').
-        # Supplying tokenizer_type="gemma" (the underlying architecture of DeepX's
-        # tokenizer) resolves this cleanly without modifying any config files or
-        # monkey-patching PreTrainedConfig.
-        from transformers import AutoTokenizer  # type: ignore[import]  # noqa: PLC0415
-        orig_tok_from_pretrained = AutoTokenizer.from_pretrained
-
-        def _safe_tok_from_pretrained(pretrained_model_name_or_path, *args, **kwargs):
-            try:
-                return orig_tok_from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
-            except AttributeError as exc:
-                if "max_position_embeddings" in str(exc):
-                    kwargs["tokenizer_type"] = "gemma"
-                    return orig_tok_from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
-                raise
-
-        AutoTokenizer.from_pretrained = _safe_tok_from_pretrained
-        try:
-            self._model: DeepXEmbed = DeepXEmbed.from_pretrained(
-                config.model_id, **load_kwargs,
-            )
-        finally:
-            AutoTokenizer.from_pretrained = orig_tok_from_pretrained
-
-        # Detect whether encode() accepts batch_size natively.
-        try:
-            import inspect as _inspect  # noqa: PLC0415
-            sig = _inspect.signature(self._model.encode)
-            self._encode_supports_batch_size = "batch_size" in sig.parameters
-        except (ValueError, TypeError):
-            self._encode_supports_batch_size = False
-
-        LOGGER.info(
-            "DeepX Matryoshka truncation: 1536 → %d dimensions",
-            config.dimension,
-        )
-        if config.normalize:
-            LOGGER.info("DeepX normalization: enabled")
-
-    @property
-    def device(self) -> str:
-        return self._device
-
-    def embed_query(self, text: str, batch_size: int = 32) -> list[float]:
-        vecs = self._encode_batch([text], batch_size)
-        return vecs[0]
-
-    def embed_documents(
-        self, texts: Sequence[str], batch_size: int = 32,
-    ) -> list[list[float]]:
-        if not texts:
-            return []
-        return self._encode_batch(list(texts), batch_size)
-
-    def _encode_batch(self, texts: list[str], batch_size: int) -> list[list[float]]:
-        """Encode *texts* in batches, returning one float vector per input.
-
-        Implements manual batching so the project-level ``--batch-size``
-        option is respected even when the ``deepx_embed`` encode() API does
-        not expose a ``batch_size`` parameter.
-        """
-        if not texts:
-            return []
-
-        # Build keyword arguments for encode().
-        encode_kwargs: dict = {
-            "truncate_dim": self._config.dimension,
-        }
-        # Only pass normalize if the API supports it.
-        try:
-            import inspect as _inspect  # noqa: PLC0415
-            sig = _inspect.signature(self._model.encode)
-            if "normalize" in sig.parameters:
-                encode_kwargs["normalize"] = self._config.normalize
-        except (ValueError, TypeError):
-            pass
-
-        if self._encode_supports_batch_size:
-            # Let the library handle batching natively.
-            encode_kwargs["batch_size"] = batch_size
-            result = self._model.encode(texts, **encode_kwargs)
-            return self._to_list(result)
-
-        # Manual batching: split into chunks of batch_size.
-        all_vecs: list[list[float]] = []
-        for start in range(0, len(texts), batch_size):
-            chunk = texts[start : start + batch_size]
-            result = self._model.encode(chunk, **encode_kwargs)
-            all_vecs.extend(self._to_list(result))
-        return all_vecs
-
-    @staticmethod
-    def _to_list(result) -> list[list[float]]:
-        """Convert numpy arrays or tensors returned by encode() to list[list[float]]."""
-        try:
-            # numpy array  (shape: N × D)
-            if hasattr(result, "tolist"):
-                converted = result.tolist()
-                # encode() for a single text may return shape (D,) instead of (1, D).
-                if converted and not isinstance(converted[0], list):
-                    converted = [converted]
-                return converted
-        except Exception:  # noqa: BLE001
-            pass
-        # Fallback: assume list[list[float]] or list[float] already.
-        if result and not isinstance(result[0], list):
-            return [list(result)]
-        return [list(row) for row in result]
-
-
-# ---------------------------------------------------------------------------
-# Backend factory
-# ---------------------------------------------------------------------------
 
 
 def _create_backend(config, *, use_fp16: bool = True) -> _EmbeddingBackend:
@@ -677,7 +468,6 @@ def _create_backend(config, *, use_fp16: bool = True) -> _EmbeddingBackend:
     ``bge``                → :class:`_BGEBackend`
     ``sentence_transformer``→ :class:`_SentenceTransformerBackend`
     ``jina``               → :class:`_JinaBackend`
-    ``deepx``              → :class:`_DeepXBackend`
     """
     if config.backend == "bge":
         return _BGEBackend(config, use_fp16=use_fp16)
@@ -685,8 +475,6 @@ def _create_backend(config, *, use_fp16: bool = True) -> _EmbeddingBackend:
         return _JinaBackend(config, use_fp16=use_fp16)
     if config.backend == "sentence_transformer":
         return _SentenceTransformerBackend(config, use_fp16=use_fp16)
-    if config.backend == "deepx":
-        return _DeepXBackend(config, use_fp16=use_fp16)
     raise ValueError(
         f"Unknown backend: {config.backend!r} "
         f"(model: {config.model_id})"
@@ -702,7 +490,7 @@ class EmbeddingModel:
     """Unified embedding model interface.
 
     Automatically selects the correct backend (FlagEmbedding, Sentence
-    Transformers, Jina, or DeepX) based on the model's entry in the
+    Transformers, or Jina) based on the model's entry in the
     :mod:`model_registry`.
 
     Parameters
