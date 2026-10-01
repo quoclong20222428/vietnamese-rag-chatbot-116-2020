@@ -180,7 +180,7 @@ Embedding model được nạp **một lần** khi khởi tạo `Retriever`, kh�
 
 ```text
 1. __init__: with connect(url) as conn   ← kết nối ngắn hạn để tải corpus
-2.             fetchall() → 617 rows
+2.             fetchall() → 618 rows
 3.           # connection tự đóng
 4. retrieve(): BM25.get_scores(tokens)   ← không cần DB, tính trong bộ nhớ
 ```
@@ -195,7 +195,7 @@ Embedding model được nạp **một lần** khi khởi tạo `Retriever`, kh�
 retriever = Retriever()
 state = retriever.verify_database_state()
 print(state)
-# {'total_chunks': 617, 'embedded_chunks': 617,
+# {'total_chunks': 618, 'embedded_chunks': 618,
 #  'missing_embeddings': 0, 'hnsw_index_exists': True}
 ```
 

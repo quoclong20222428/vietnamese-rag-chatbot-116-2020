@@ -1,5 +1,9 @@
 # Đánh giá Retrieval (Retrieval Evaluation)
 
+> **LƯU Ý:** Kết quả benchmark hiện tại (mới nhất) được đánh giá trên corpus **618 chunks**. Tuy nhiên, các bảng phân tích chi tiết bên dưới (theo từng nhóm query, từng model) có thể vẫn đang lưu giữ dữ liệu lịch sử từ bản benchmark trước đó trên corpus 618 chunks.
+
+
+
 Tài liệu này là **nguồn sự thật duy nhất (single canonical source of truth)** về phương pháp luận đánh giá, định nghĩa và ý nghĩa thực tiễn của các chỉ số, giải thích tham số kỹ thuật, cấu trúc ground truth phân cấp chia mức độ liên quan (**`EvalQueryV2`**), điều kiện thực nghiệm chuẩn hóa, kết quả đo lường toàn diện của **6 mô hình embedding**, phân tích chuyên sâu đa chiều và hướng dẫn thực thi tái lập trên Windows PowerShell.
 
 ---
@@ -41,7 +45,7 @@ Cần phân định rành mạch 4 khái niệm kỹ thuật:
 * **Answerable Query (Truy vấn có thể trả lời)**: Câu hỏi mà nội dung căn cứ pháp lý để giải quyết đã tồn tại trong cơ sở dữ liệu của hệ thống. Bộ benchmark `EvalQueryV2` có **95 câu hỏi** loại này.
 * **Out-of-Scope Query - OOS (Truy vấn ngoài phạm vi)**: Câu hỏi hỏi về các văn bản pháp luật hoặc lĩnh vực không nằm trong phạm vi cơ sở dữ liệu của chatbot (ví dụ: hỏi về Luật Lao động 2019, Bộ luật Hình sự).
 * **Invalid Query (Truy vấn không hợp lệ / Nhiễu)**: Câu hỏi chứa ký tự ngẫu nhiên vô nghĩa (ví dụ: `asdfghjkl qwerty 12345`) hoặc câu hỏi hoàn toàn lạc đề (ví dụ: giá vàng, thời tiết, tỷ giá ngoại tệ).
-* **Chunk (Đoạn trích dữ liệu)**: Đơn vị văn bản nhỏ nhất được chia cắt từ tài liệu gốc, lưu trữ trong cơ sở dữ liệu và được biểu diễn bằng một vector embedding (toàn bộ corpus hiện có **617 chunks**).
+* **Chunk (Đoạn trích dữ liệu)**: Đơn vị văn bản nhỏ nhất được chia cắt từ tài liệu gốc, lưu trữ trong cơ sở dữ liệu và được biểu diễn bằng một vector embedding (toàn bộ corpus hiện có **618 chunks**).
 * **Ground Truth (Chân lý mặt đất / Dữ liệu đối sánh chuẩn)**: Tập hợp các chunk pháp lý thực tế đã được chuyên viên pháp lý xác thực là nguồn thông tin chính xác và đầy đủ để trả lời cho từng câu hỏi.
 * **Relevant Chunk (Chunk liên quan)**: Chunk được xác định là có liên quan đến câu hỏi. Trong hệ thống này, chunk được coi là liên quan khi có điểm mức độ liên quan `grade >= 2`.
 * **Graded Relevance (Mức độ liên quan phân cấp / chia mức)**: Cơ chế chấm điểm độ phù hợp của chunk theo thang điểm nhiều mức (từ 0 đến 3) thay vì chỉ nhị phân (Đúng/Sai).
@@ -216,11 +220,11 @@ Thuật toán HNSW (Hierarchical Navigable Small World) xây dựng đồ thị 
 * **Khái niệm**: Số lượng phần tử số thực (floating-point numbers) trong mảng vector biểu diễn ngữ nghĩa của văn bản.
 * **Ý nghĩa thực tế**: Tất cả 6 mô hình được cấu hình chuẩn hóa ở **1024 chiều** (trong $\mathbb{R}^{1024}$). Cần phân biệt rõ:
   * **Số chiều vector (1024)**: Độ chi tiết của biểu diễn ngữ nghĩa (1 vector chiếm $\approx 4\text{ KB}$ lưu trữ).
-  * **Số lượng chunks (617)**: Tổng số bản ghi văn bản pháp lý lưu trong bảng `legal_chunks`.
+  * **Số lượng chunks (618)**: Tổng số bản ghi văn bản pháp lý lưu trong bảng `legal_chunks`.
 
 ### 5.4. Độ phủ nhúng (Coverage)
-* **Độ phủ: `617 / 617` (100.0%)**:
-  Toàn bộ 617 đoạn văn bản pháp luật hiện có trong cơ sở dữ liệu đều đã được sinh vector embedding đầy đủ và không có bất kỳ chunk nào mang giá trị NULL ở cột vector của 6 mô hình.
+* **Độ phủ: `618 / 618` (100.0%)**:
+  Toàn bộ 618 đoạn văn bản pháp luật hiện có trong cơ sở dữ liệu đều đã được sinh vector embedding đầy đủ và không có bất kỳ chunk nào mang giá trị NULL ở cột vector của 6 mô hình.
 
 ### 5.5. Thời gian chạy benchmark (Runtime)
 * **Ý nghĩa con số thời gian**: Thời gian đo lường trong log (từ ~87s đến ~195s) là tổng thời gian thực hiện toàn bộ quy trình: nạp mô hình vào GPU, mã hóa 100 câu hỏi liên tiếp, gửi truy vấn qua mạng tới NeonDB, thực hiện HNSW search và tính toán metrics đối sánh.
@@ -246,23 +250,23 @@ Toàn bộ 6 mô hình đều sinh vector **1024 chiều**, sử dụng độ đ
 
 Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log chính thức trong thư mục `logs/` chạy trên tập 95 câu hỏi hợp lệ của `EvalQueryV2`:
 
-| Chỉ số | `BAAI/bge-m3` (`bge-m3`) | `darklethelong/vnlegal-lal` (`vnlegal-lal`) | `mainguyen9/vietlegal-harrier-0.6b` (`vietlegal-harrier`) | `mainguyen9/vietlegal-e5` (`vietlegal-e5`) | `jinaai/jina-embeddings-v3-hf` (`jina-v3`) |
-|---|---:|---:|---:|---:|---:|
-| **Hit@3** | 0.6526 | 0.4526 | **0.7158** | 0.4842 | 0.4737 |
-| **Hit@5** | 0.7158 | 0.5579 | **0.7684** | 0.6421 | 0.5368 |
-| **Hit@10** | 0.8316 | 0.6632 | **0.8632** | 0.7789 | 0.6526 |
-| **Recall@3** | 0.3738 | 0.2253 | **0.3749** | 0.2234 | 0.2605 |
-| **Recall@5** | 0.4366 | 0.2694 | **0.4463** | 0.3330 | 0.3182 |
-| **Recall@10** | 0.5428 | 0.3588 | **0.5539** | 0.4594 | 0.4052 |
-| **Precision@3** | 0.3053 | 0.1789 | **0.3123** | 0.1895 | 0.2140 |
-| **Precision@5** | 0.2189 | 0.1411 | **0.2358** | 0.1811 | 0.1642 |
-| **Precision@10** | 0.1432 | 0.0989 | **0.1537** | 0.1253 | 0.1105 |
-| **MRR** | 0.5733 | 0.3749 | **0.6027** | 0.4064 | 0.4015 |
-| **nDCG@3** | 0.4276 | 0.2571 | **0.4325** | 0.2513 | 0.2895 |
-| **nDCG@5** | 0.4370 | 0.2753 | **0.4524** | 0.3004 | 0.3101 |
-| **nDCG@10** | 0.4823 | 0.3105 | **0.4954** | 0.3499 | 0.3460 |
-| **Average Top-1 Similarity** | 0.684919 | **0.930506** | 0.583023 | 0.667292 | 0.720965 |
-| **Thời gian thực thi benchmark** | 87.72s | 87.52s | 94.67s | 92.51s | 111.35s |
+| Chỉ số | `bge-m3` | `vnlegal-lal` | `vietlegal-harrier` | `vietlegal-e5` | `jina-v3` | `bm25` |
+|---|---:|---:|---:|---:|---:|---:|
+| **Hit@3** | 0.6947 | 0.5684 | 0.7895 | 0.6421 | 0.6000 | 0.4842 |
+| **Hit@5** | 0.7895 | 0.6316 | 0.8421 | 0.7263 | 0.6737 | 0.5684 |
+| **Hit@10** | 0.8842 | 0.7158 | 0.9053 | 0.8316 | 0.7684 | 0.7368 |
+| **Recall@3** | 0.4265 | 0.3309 | 0.4707 | 0.3377 | 0.3665 | 0.3024 |
+| **Recall@5** | 0.5213 | 0.3646 | 0.5427 | 0.4328 | 0.4539 | 0.3668 |
+| **Recall@10** | 0.6282 | 0.4647 | 0.6591 | 0.5502 | 0.5527 | 0.4696 |
+| **Precision@3** | 0.3088 | 0.2281 | 0.3474 | 0.2702 | 0.2561 | 0.1895 |
+| **Precision@5** | 0.2421 | 0.1621 | 0.2526 | 0.2126 | 0.1958 | 0.1432 |
+| **Precision@10** | 0.1558 | 0.1116 | 0.1663 | 0.1379 | 0.1379 | 0.1011 |
+| **MRR** | 0.6229 | 0.4759 | 0.6528 | 0.5432 | 0.4983 | 0.4101 |
+| **nDCG@3** | 0.4728 | 0.3476 | 0.5051 | 0.3843 | 0.3787 | 0.3112 |
+| **nDCG@5** | 0.5045 | 0.3512 | 0.5203 | 0.4150 | 0.4057 | 0.3390 |
+| **nDCG@10** | 0.5457 | 0.3903 | 0.5653 | 0.4549 | 0.4484 | 0.3798 |
+| **Average Top-1 Similarity** | 0.698086 | 0.933826 | 0.601330 | 0.678649 | 0.732983 | 32.577733 |
+| **Thời gian thực thi benchmark** | 135.58s | 152.00s | 136.10s | 143.65s | 128.16s | 1.83s | 152.00s | 136.10s | 143.65s | 128.16s | 152.00s | 136.10s | 143.65s | 128.16s | 87.52s | 94.67s | 92.51s | 111.35s |
 
 ---
 
@@ -275,29 +279,32 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log ch
 #### 1. Category: `exact` (n = 15 câu - Trích dẫn trực tiếp Điều/Khoản)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | 0.8000 | 0.8000 | 0.9333 | 0.6500 | 0.7167 | 0.8333 | 0.7169 | 0.7202 |
-| `vnlegal-lal` | 0.6000 | 0.6000 | 0.7333 | 0.4056 | 0.4389 | 0.5611 | 0.5407 | 0.4719 |
-| `vietlegal-harrier` | **0.8667** | **0.9333** | **1.0000** | 0.5944 | **0.7500** | **0.8500** | **0.8122** | **0.7453** |
-| `vietlegal-e5` | 0.6000 | 0.6667 | 0.8000 | 0.3389 | 0.4833 | 0.6167 | 0.4901 | 0.4839 |
-| `jina-v3` | 0.8000 | 0.8667 | 0.8667 | **0.6500** | 0.7167 | 0.7833 | 0.7356 | 0.7003 |
+| `bge-m3` | 0.8000 | 0.8000 | 0.9333 | **0.7333** | 0.7667 | 0.8667 | 0.7503 | **0.7781** |
+| `vnlegal-lal` | 0.6667 | 0.6667 | 0.8000 | 0.5556 | 0.5889 | 0.7444 | 0.5622 | 0.5547 |
+| `vietlegal-harrier` | **0.8667** | **0.9333** | **1.0000** | 0.7111 | **0.8333** | **0.9333** | **0.7789** | 0.7731 |
+| `vietlegal-e5` | 0.6000 | 0.6667 | 0.8000 | 0.4222 | 0.5667 | 0.7000 | 0.4790 | 0.5190 |
+| `jina-v3` | 0.8000 | 0.8667 | 0.8667 | **0.7333** | 0.8000 | 0.8333 | 0.7689 | 0.7696 |
+| `bm25` | 0.4667 | 0.5333 | 0.5333 | 0.3556 | 0.4222 | 0.4222 | 0.3133 | 0.3287 |
 
 #### 2. Category: `semantic` (n = 20 câu - Ngôn ngữ tự nhiên / Diễn giải tương đương)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | **0.7500** | **0.7500** | **0.8500** | **0.5167** | **0.5667** | **0.6333** | **0.5933** | **0.5387** |
-| `vnlegal-lal` | 0.5000 | 0.5500 | 0.6000 | 0.3417 | 0.3750 | 0.4500 | 0.3264 | 0.3443 |
-| `vietlegal-harrier` | 0.6500 | 0.6500 | 0.7500 | 0.4583 | 0.4833 | **0.6333** | 0.5321 | 0.4979 |
-| `vietlegal-e5` | 0.4000 | 0.5000 | 0.7500 | 0.2667 | 0.3833 | 0.6167 | 0.3712 | 0.3846 |
-| `jina-v3` | 0.3500 | 0.4000 | 0.4500 | 0.2417 | 0.3333 | 0.3583 | 0.3354 | 0.3033 |
+| `bge-m3` | **0.8500** | **0.8500** | **0.8500** | **0.6208** | **0.7000** | 0.7125 | 0.6750 | 0.6465 |
+| `vnlegal-lal` | 0.6500 | 0.6500 | 0.7000 | 0.5000 | 0.5375 | 0.6000 | 0.4889 | 0.4998 |
+| `vietlegal-harrier` | 0.8000 | 0.8000 | **0.8500** | 0.6167 | 0.6792 | **0.7667** | **0.6905** | **0.6666** |
+| `vietlegal-e5` | 0.6500 | 0.6500 | 0.8000 | 0.5125 | 0.5625 | 0.7083 | 0.5933 | 0.5843 |
+| `jina-v3` | 0.5500 | 0.6500 | 0.6500 | 0.4500 | 0.5875 | 0.6000 | 0.4417 | 0.4666 |
+| `bm25` | 0.6500 | 0.6500 | 0.8000 | 0.5417 | 0.5417 | 0.6667 | 0.5501 | 0.5666 |
 
 #### 3. Category: `contextual` (n = 25 câu - Ngữ cảnh chính sách / Điều kiện thi hành)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | **0.4800** | **0.5600** | **0.8400** | 0.2733 | 0.3433 | **0.5100** | **0.4291** | **0.3893** |
-| `vnlegal-lal` | 0.2000 | 0.3200 | 0.4800 | 0.0933 | 0.1367 | 0.2400 | 0.1794 | 0.1678 |
-| `vietlegal-harrier` | **0.4800** | **0.5600** | 0.7200 | **0.3167** | **0.3533** | 0.4400 | 0.3840 | 0.3519 |
-| `vietlegal-e5` | 0.4400 | **0.5600** | 0.6400 | 0.2300 | 0.3200 | 0.3833 | 0.3278 | 0.2765 |
-| `jina-v3` | 0.2800 | 0.3200 | 0.5600 | 0.1267 | 0.1567 | 0.2900 | 0.1942 | 0.1725 |
+| `bge-m3` | 0.4800 | 0.6800 | **0.8800** | 0.3200 | 0.4433 | 0.6333 | 0.4607 | 0.4672 |
+| `vnlegal-lal` | 0.4400 | 0.4800 | 0.6000 | 0.2667 | 0.2800 | 0.4000 | 0.3283 | 0.3048 |
+| `vietlegal-harrier` | **0.6000** | **0.7200** | **0.8800** | **0.4433** | **0.5033** | **0.6567** | **0.4863** | **0.4696** |
+| `vietlegal-e5` | 0.5200 | 0.6800 | 0.8000 | 0.3100 | 0.4300 | 0.5867 | 0.4361 | 0.4234 |
+| `jina-v3` | 0.4400 | 0.4800 | 0.7200 | 0.2867 | 0.3667 | 0.5233 | 0.3407 | 0.3480 |
+| `bm25` | 0.4800 | 0.6400 | 0.8400 | 0.3133 | 0.4467 | 0.6000 | 0.4564 | 0.4399 |
 
 #### 4. Category: `multi_chunk` (n = 15 câu - Yêu cầu nhiều đoạn trong cùng văn bản)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
@@ -311,20 +318,22 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log ch
 #### 5. Category: `multi_document` (n = 10 câu - Liên kết xuyên văn bản)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | 0.7000 | 0.7000 | 0.7000 | **0.3500** | 0.3500 | 0.4200 | **0.6500** | 0.4309 |
-| `vnlegal-lal` | 0.6000 | 0.7000 | 0.8000 | 0.2475 | 0.3000 | 0.3617 | 0.5194 | 0.3902 |
-| `vietlegal-harrier` | **0.8000** | **0.8000** | **1.0000** | 0.3333 | **0.4150** | **0.5092** | 0.6211 | **0.4933** |
-| `vietlegal-e5` | 0.5000 | **0.8000** | 0.9000 | 0.1317 | 0.2692 | 0.3475 | 0.4644 | 0.3000 |
-| `jina-v3` | 0.7000 | 0.7000 | 0.8000 | 0.2475 | 0.2475 | 0.3458 | 0.6167 | 0.3831 |
+| `bge-m3` | 0.7000 | 0.8000 | **0.9000** | 0.2678 | 0.3317 | **0.4880** | 0.6893 | **0.4174** |
+| `vnlegal-lal` | 0.7000 | 0.7000 | 0.8000 | 0.2339 | 0.2589 | 0.2958 | 0.5944 | 0.3315 |
+| `vietlegal-harrier` | 0.7000 | 0.8000 | 0.8000 | **0.2798** | **0.3430** | 0.4153 | 0.5533 | 0.4070 |
+| `vietlegal-e5` | **0.9000** | **0.9000** | **0.9000** | 0.2271 | 0.2882 | 0.3516 | 0.6833 | 0.3433 |
+| `jina-v3` | 0.8000 | **0.9000** | **0.9000** | 0.2589 | 0.2930 | 0.3554 | **0.7200** | 0.3971 |
+| `bm25` | 0.3000 | 0.4000 | 0.5000 | 0.1250 | 0.1861 | 0.2872 | 0.3361 | 0.2534 |
 
 #### 6. Category: `complex_qa` (n = 10 câu - Câu hỏi tình huống tổng hợp)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | 0.6000 | 0.6000 | 0.6000 | 0.2183 | 0.2933 | 0.2933 | 0.4333 | 0.3330 |
-| `vnlegal-lal` | 0.4000 | 0.6000 | 0.7000 | 0.1500 | 0.2083 | 0.2867 | 0.3543 | 0.2891 |
-| `vietlegal-harrier` | **0.8000** | **0.9000** | **0.9000** | **0.2767** | **0.3550** | **0.4450** | **0.6750** | **0.4656** |
-| `vietlegal-e5` | 0.4000 | 0.7000 | 0.7000 | 0.1833 | 0.3017 | 0.3217 | 0.3533 | 0.3128 |
-| `jina-v3` | 0.2000 | 0.4000 | 0.5000 | 0.1200 | 0.1700 | 0.2683 | 0.1876 | 0.2030 |
+| `bge-m3` | 0.7000 | 0.7000 | 0.8000 | 0.2662 | 0.3912 | 0.4246 | 0.4976 | 0.3867 |
+| `vnlegal-lal` | 0.4000 | 0.6000 | 0.7000 | 0.1625 | 0.2208 | 0.3554 | 0.3593 | 0.3006 |
+| `vietlegal-harrier` | **1.0000** | **1.0000** | **1.0000** | **0.3829** | **0.4612** | **0.5075** | **0.7167** | **0.5322** |
+| `vietlegal-e5` | 0.6000 | 0.8000 | 0.8000 | 0.2396 | 0.3246 | 0.3446 | 0.4617 | 0.3619 |
+| `jina-v3` | 0.5000 | 0.6000 | 0.7000 | 0.2013 | 0.2846 | 0.3808 | 0.2917 | 0.2772 |
+| `bm25` | 0.5000 | 0.5000 | 0.8000 | 0.1562 | 0.1562 | 0.2546 | 0.3042 | 0.2348 |
 
 ### 8.2. Nhận xét thực nghiệm theo danh mục
 
@@ -343,29 +352,32 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log ch
 #### 1. Mức độ: `easy` (n = 10 câu)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | 0.8000 | 0.8000 | 0.9000 | **0.7000** | **0.8000** | **0.8500** | 0.7111 | 0.7349 |
-| `vnlegal-lal` | 0.6000 | 0.6000 | 0.7000 | 0.4500 | 0.5000 | 0.6000 | 0.5667 | 0.5423 |
-| `vietlegal-harrier` | **0.9000** | **0.9000** | **1.0000** | 0.6500 | 0.7500 | **0.8500** | **0.8600** | **0.8084** |
-| `vietlegal-e5` | 0.6000 | 0.7000 | 0.7000 | 0.4000 | 0.5500 | 0.5500 | 0.5250 | 0.5061 |
-| `jina-v3` | 0.7000 | 0.8000 | 0.8000 | 0.6000 | 0.7000 | 0.8000 | 0.6700 | 0.6863 |
+| `bge-m3` | 0.8000 | 0.8000 | 0.9000 | **0.7500** | **0.8000** | 0.8500 | 0.7611 | 0.7800 |
+| `vnlegal-lal` | 0.7000 | 0.7000 | 0.8000 | 0.6000 | 0.6500 | 0.8000 | 0.6000 | 0.6129 |
+| `vietlegal-harrier` | **0.9000** | **0.9000** | **1.0000** | **0.7500** | **0.8000** | **0.9000** | **0.8100** | **0.7957** |
+| `vietlegal-e5` | 0.6000 | 0.7000 | 0.7000 | 0.4500 | 0.6000 | 0.6000 | 0.5083 | 0.5093 |
+| `jina-v3` | 0.7000 | 0.8000 | 0.8000 | 0.6500 | 0.7500 | 0.8000 | 0.7200 | 0.7343 |
+| `bm25` | 0.5000 | 0.6000 | 0.6000 | 0.4000 | 0.5000 | 0.5000 | 0.3200 | 0.3642 |
 
 #### 2. Mức độ: `medium` (n = 41 câu)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | **0.6829** | 0.7317 | **0.8780** | **0.3776** | **0.4301** | **0.5451** | **0.5944** | **0.4981** |
-| `vnlegal-lal` | 0.4878 | 0.6098 | 0.6829 | 0.2492 | 0.2959 | 0.3752 | 0.3721 | 0.3083 |
-| `vietlegal-harrier` | **0.6829** | **0.7561** | 0.8293 | 0.3561 | 0.4280 | 0.5232 | 0.5844 | 0.4744 |
-| `vietlegal-e5` | 0.4634 | 0.6098 | 0.8293 | 0.1919 | 0.2923 | 0.5195 | 0.3940 | 0.3561 |
-| `jina-v3` | 0.4634 | 0.5122 | 0.6098 | 0.2565 | 0.3081 | 0.3789 | 0.4060 | 0.3404 |
+| `bge-m3` | 0.7073 | 0.7805 | 0.8780 | 0.4442 | 0.5300 | 0.6280 | 0.6103 | 0.5421 |
+| `vnlegal-lal` | 0.6098 | 0.6585 | 0.7317 | 0.3774 | 0.4107 | 0.4813 | 0.4770 | 0.4049 |
+| `vietlegal-harrier` | **0.7561** | **0.8293** | **0.9024** | **0.4680** | **0.5508** | **0.6915** | **0.6535** | **0.5793** |
+| `vietlegal-e5` | 0.6098 | 0.6829 | 0.8780 | 0.3434 | 0.4485 | 0.6506 | 0.5278 | 0.4863 |
+| `jina-v3` | 0.5610 | 0.6341 | 0.7317 | 0.3719 | 0.4677 | 0.5726 | 0.4571 | 0.4422 |
+| `bm25` | 0.5122 | 0.6098 | 0.7317 | 0.3452 | 0.4143 | 0.5031 | 0.4454 | 0.4110 |
 
 #### 3. Mức độ: `hard` (n = 44 câu)
 | Model | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | MRR | nDCG@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bge-m3` | 0.5909 | 0.6818 | 0.7727 | 0.2960 | 0.3601 | 0.4709 | 0.5223 | 0.4100 |
-| `vnlegal-lal` | 0.3864 | 0.5000 | 0.6364 | 0.1519 | 0.1923 | 0.2887 | 0.3339 | 0.2599 |
-| `vietlegal-harrier` | **0.7045** | **0.7500** | **0.8636** | **0.3300** | **0.3944** | **0.5152** | **0.5613** | **0.4438** |
-| `vietlegal-e5` | 0.4773 | 0.6591 | 0.7500 | 0.2127 | 0.3216 | 0.3828 | 0.3910 | 0.3086 |
-| `jina-v3` | 0.4318 | 0.5000 | 0.6591 | 0.1870 | 0.2408 | 0.3400 | 0.3363 | 0.2740 |
+| `bge-m3` | 0.6591 | 0.7955 | **0.8864** | 0.3365 | 0.4499 | **0.5779** | 0.6031 | 0.4959 |
+| `vnlegal-lal` | 0.5000 | 0.5909 | 0.6818 | 0.2265 | 0.2568 | 0.3730 | 0.4466 | 0.3261 |
+| `vietlegal-harrier` | **0.7955** | **0.8409** | **0.8864** | **0.4097** | **0.4767** | 0.5741 | **0.6165** | **0.5000** |
+| `vietlegal-e5` | 0.6818 | 0.7727 | 0.8182 | 0.3068 | 0.3802 | 0.4453 | 0.5656 | 0.4134 |
+| `jina-v3` | 0.6136 | 0.6818 | 0.7955 | 0.2970 | 0.3737 | 0.4779 | 0.4863 | 0.3892 |
+| `bm25` | 0.4545 | 0.5227 | 0.7727 | 0.2404 | 0.2922 | 0.4315 | 0.3977 | 0.3543 |
 
 ### 9.2. Nhận xét thực nghiệm theo độ khó
 
@@ -387,7 +399,7 @@ Nguồn sự thật khách quan: Trích xuất trực tiếp từ 5 tệp log ch
 
 * **Số lượng kết quả trả về**: Cả 5 mô hình đều trả về đủ 10 chunks cho mỗi truy vấn (tổng cộng 50 kết quả cho 5 câu).
 * **Số lỗi runtime / ngoại lệ**: 0 lỗi trên toàn bộ các mô hình.
-* **Top-1 Chunk trả về**: Hệ thống luôn trả về các đoạn trích có vector gần nhất trong 617 chunks hiện có (ví dụ với BGE-M3, câu hỏi giá vàng trả về `60-2025-ND-CP-dieu-3-khoan-2`, câu hỏi luật lao động trả về `LUAT-GIAO-DUC-2019-dieu-65-khoan-3`).
+* **Top-1 Chunk trả về**: Hệ thống luôn trả về các đoạn trích có vector gần nhất trong 618 chunks hiện có (ví dụ với BGE-M3, câu hỏi giá vàng trả về `60-2025-ND-CP-dieu-3-khoan-2`, câu hỏi luật lao động trả về `LUAT-GIAO-DUC-2019-dieu-65-khoan-3`).
 * **Hàm ý kiến trúc quan trọng (Abstention Requirement)**:
   * Thuật toán tìm kiếm vector láng giềng gần nhất (k-NN) hoạt động thuần túy trên phép chiếu khoảng cách hình học, **không có khả năng tự nhận biết câu hỏi có thuộc phạm vi hay không**.
   * Điều này khẳng định sự cần thiết phải xây dựng cơ chế phát hiện từ chối trả lời (Abstention / Guardrails) ở tầng ứng dụng (Application Layer), ví dụ: bộ phân loại intent trước khi tìm kiếm, hoặc thiết lập ngưỡng tương đồng tối thiểu kết hợp prompt hướng dẫn LLM từ chối khi ngữ cảnh không khớp.

@@ -76,8 +76,8 @@ INFO: --- Indexing summary ---
 INFO: Successfully indexed: 521
 INFO: Failed:               0
 INFO: --- Verification ---
-INFO: Total chunks:         617
-INFO: Embedded chunks:      617
+INFO: Total chunks:         618
+INFO: Embedded chunks:      618
 INFO: Missing embeddings:   0
 INFO: Embedding dimension:  1024
 INFO: Dimension correct:    True
@@ -87,7 +87,7 @@ INFO: Indexing stage complete. Database is ready for retrieval.
 
 **Chi tiết nghiệm thu:**
 
-- **Độ phủ dữ liệu**: Toàn bộ **617/617** legal chunks đã được vector hóa thành công (tỷ lệ thành công 100%, 0 lỗi).
+- **Độ phủ dữ liệu**: Toàn bộ **618/618** legal chunks đã được vector hóa thành công (tỷ lệ thành công 100%, 0 lỗi).
 - **Tính năng tiếp nối (Idempotent / Resume)**: Script tự động phát hiện 96 chunks đã nhúng trước đó và chỉ xử lý 521 chunks còn thiếu mà không gây trùng lặp hay ghi đè sai lệch.
 - **Kích thước vector**: 1024 chiều, chuẩn hóa L2 từ `BAAI/bge-m3` (`Dimension correct: True`).
 - **Chỉ mục HNSW**: `legal_chunks_embedding_hnsw_idx` với toán tử `vector_cosine_ops` đã tồn tại và sẵn sàng phục vụ truy vấn tương đồng cosine (`HNSW index exists: True`).

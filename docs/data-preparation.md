@@ -56,7 +56,7 @@ Script `scripts/legal_chunker.py` chuyển đổi các tệp Markdown thành cá
 
 **Kết quả chunking hiện tại:**
 
-- **617 legal chunks** từ toàn bộ bộ văn bản pháp lý.
+- **618 legal chunks** từ toàn bộ bộ văn bản pháp lý.
 - Định dạng đầu ra: JSONL (`data/processed/legal_chunks.jsonl`), mỗi đoạn nằm trên một dòng.
 
 Chạy từ thư mục gốc sau khi kích hoạt môi trường Conda:

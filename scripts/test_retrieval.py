@@ -152,6 +152,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="G",
         help="Minimum relevance grade for Hit/Recall/Precision/MRR (default: 2).",
     )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="hnsw",
+        choices=["hnsw", "bm25"],
+        help="Retrieval method to use (default: hnsw).",
+    )
     return parser.parse_args(argv)
 
 
@@ -244,17 +251,26 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         try:
-            if __package__:
-                from .retrievers.hnsw import Retriever  # noqa: PLC0415
+            if args.method == "bm25":
+                if __package__:
+                    from .retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
+                else:
+                    from retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
             else:
-                from retrievers.hnsw import Retriever  # noqa: PLC0415
+                if __package__:
+                    from .retrievers.hnsw import Retriever  # noqa: PLC0415
+                else:
+                    from retrievers.hnsw import Retriever  # noqa: PLC0415
         except ImportError as exc:
             print(f"ERROR: Could not import retrieval module: {exc}")
             return 1
 
-        retriever = Retriever(
-            database_url=database_url, ef_search=args.ef_search
-        )
+        if args.method == "bm25":
+            retriever = Retriever(database_url=database_url)
+        else:
+            retriever = Retriever(
+                database_url=database_url, ef_search=args.ef_search
+            )
         return _run_adhoc_query(retriever, args.query, args.top_k)
 
 
@@ -267,10 +283,16 @@ def main(argv: list[str] | None = None) -> int:
     database_name = _get_database_name(database_url)
 
     try:
-        if __package__:
-            from .retrievers.hnsw import Retriever  # noqa: PLC0415
+        if args.method == "bm25":
+            if __package__:
+                from .retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
+            else:
+                from retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
         else:
-            from retrievers.hnsw import Retriever  # noqa: PLC0415
+            if __package__:
+                from .retrievers.hnsw import Retriever  # noqa: PLC0415
+            else:
+                from retrievers.hnsw import Retriever  # noqa: PLC0415
     except ImportError as exc:
         print(f"ERROR: Could not import retrieval module: {exc}")
         return 1
@@ -278,16 +300,36 @@ def main(argv: list[str] | None = None) -> int:
     print("\n" + "=" * 60)
     print("RETRIEVAL EVALUATION (EvalQueryV2)")
     print("=" * 60)
+    print(f"Method:     {args.method.upper()}")
     print(f"Top-K:      {args.top_k}")
-    print(f"ef_search:  {args.ef_search}")
+    if args.method == "hnsw":
+        print(f"ef_search:  {args.ef_search}")
     print(f"min_grade:  {args.min_grade}")
     print(f"Dataset:    EvalQueryV2 ({len(EVAL_QUERIES_V2)} queries)")
     print("INFO: Initialising retriever...")
 
-    retriever = Retriever(database_url=database_url, ef_search=args.ef_search)
-    model_meta = _get_model_metadata(retriever)
-    model_name = model_meta["model_name"]
-    model_alias = model_meta["model_alias"]
+    if args.method == "bm25":
+        retriever = Retriever(database_url=database_url)
+    else:
+        retriever = Retriever(database_url=database_url, ef_search=args.ef_search)
+    if args.method == "bm25":
+        model_name = "BM25"
+        model_alias = "Okapi BM25"
+        embedding_dim = 0
+        device = "CPU"
+        model_meta = {
+            "model_name": model_name,
+            "model_alias": model_alias,
+            "backend": "rank_bm25",
+            "embedding_column": "N/A",
+            "embedding_dim": embedding_dim,
+        }
+    else:
+        model_meta = _get_model_metadata(retriever)
+        model_name = model_meta["model_name"]
+        model_alias = model_meta["model_alias"]
+        embedding_dim = model_meta["embedding_dim"]
+        device = retriever.device
 
     # Build a filesystem-safe model name for the output file.
     safe_model_name = model_name.replace("/", "_").replace("\\", "_")
@@ -300,18 +342,19 @@ def main(argv: list[str] | None = None) -> int:
         random_suffix = f"{randbelow(10000):04d}"
         log_path = logs_dir / f"{safe_model_name}_{timestamp}_{random_suffix}.txt"
 
-    embedding_dim = model_meta["embedding_dim"]
-    device = retriever.device
-
     print(f"Model:            {model_name}")
     print(f"Embedding device: {device}")
 
     print("\n--- Database State ---")
-    state = retriever.verify_database_state()
-    print(f"Total chunks:       {state['total_chunks']}")
-    print(f"Embedded chunks:    {state['embedded_chunks']}")
-    print(f"Missing embeddings: {state['missing_embeddings']}")
-    print(f"HNSW index exists:  {state['hnsw_index_exists']}")
+    if hasattr(retriever, "verify_database_state"):
+        state = retriever.verify_database_state()
+        print(f"Total chunks:       {state['total_chunks']}")
+        print(f"Embedded chunks:    {state['embedded_chunks']}")
+        print(f"Missing embeddings: {state['missing_embeddings']}")
+        print(f"HNSW index exists:  {state['hnsw_index_exists']}")
+    else:
+        state = {"total_chunks": getattr(retriever, "corpus_size", "N/A")}
+        print(f"Total chunks:       {state['total_chunks']}")
 
     queries = EVAL_QUERIES_V2
     print(f"\nRunning {len(queries)} evaluation queries...\n")
@@ -341,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
             embedding_dim=embedding_dim,
             backend=model_meta["backend"],
             embedding_column=model_meta["embedding_column"],
-            retriever="HNSW (pgvector)",
+            retriever="BM25 (rank_bm25)" if args.method == "bm25" else "HNSW (pgvector)",
             start_time=start_time,
             end_time=end_time,
             top_k=args.top_k,

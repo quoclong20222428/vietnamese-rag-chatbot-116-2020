@@ -88,10 +88,10 @@ Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts
 
 | Giai đoạn | Trạng thái |
 |---|:---:|
-| Thu thập & Xử lý dữ liệu (617 chunks pháp lý) | ✅ Hoàn thành |
+| Thu thập & Xử lý dữ liệu (618 chunks pháp lý) | ✅ Hoàn thành |
 | Chunking & Chuẩn hóa cấu trúc (Điều/Khoản/Điểm) | ✅ Hoàn thành |
 | Cơ sở dữ liệu PostgreSQL + pgvector (`init.sql`) | ✅ Hoàn thành |
-| Vector hóa BGE-M3 — 617/617 chunks, 1024 chiều | ✅ Hoàn thành |
+| Vector hóa BGE-M3 — 618/618 chunks, 1024 chiều | ✅ Hoàn thành |
 | Chỉ mục HNSW (`vector_cosine_ops`, m=16, ef_construction=64) | ✅ Hoàn thành |
 | Module Vector Retrieval (`scripts/retrievers/hnsw.py`) | ✅ Hoàn thành |
 | Đánh giá Retrieval (EvalQueryV2 — 100 câu hỏi, ground truth phân cấp và chia mức) | ✅ Hoàn thành |
@@ -120,24 +120,25 @@ Chi tiết đầy đủ: [Lịch sử phát triển Retrieval](docs/retrieval-de
 
 ## Kết quả đánh giá Retrieval
 
-Đánh giá thực nghiệm được thực hiện trên tập benchmark chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 câu hỏi hợp lệ, 5 câu hỏi ngoài phạm vi OOS / không hợp lệ) trên toàn bộ 617 chunks pháp lý trong cơ sở dữ liệu NeonDB PostgreSQL (`pgvector`), sử dụng chỉ mục HNSW (`vector_cosine_ops`, `ef_search=80`, `top_k=10`).
+Đánh giá thực nghiệm được thực hiện trên tập benchmark chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 câu hỏi hợp lệ, 5 câu hỏi ngoài phạm vi OOS / không hợp lệ) trên toàn bộ 618 chunks pháp lý trong cơ sở dữ liệu NeonDB PostgreSQL (`pgvector`), sử dụng chỉ mục HNSW (`vector_cosine_ops`, `ef_search=80`, `top_k=10`).
 
 ### Bảng kết quả tổng hợp 5 mô hình embedding
 
 Nguồn dữ liệu: 5 tệp log benchmark chính thức tại thư mục `logs/` (ngưỡng liên quan nhị phân `grade >= 2`, nDCG có trọng số đa mức `1, 2, 3`):
 
-| Mô hình | Alias | Chiều vector | Hit@3 | Hit@5 | Hit@10 | Recall@10 | MRR | nDCG@10 | Avg Top-1 Sim |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 1024 | **0.7158** | **0.7684** | **0.8632** | **0.5539** | **0.6027** | **0.4954** | 0.583023 |
-| `BAAI/bge-m3` | `bge-m3` | 1024 | 0.6526 | 0.7158 | 0.8316 | 0.5428 | 0.5733 | 0.4823 | 0.684919 |
-| `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | 0.4842 | 0.6421 | 0.7789 | 0.4594 | 0.4064 | 0.3499 | 0.667292 |
-| `darklethelong/vnlegal-lal` | `vnlegal-lal` | 1024 | 0.4526 | 0.5579 | 0.6632 | 0.3588 | 0.3749 | 0.3105 | **0.930506** |
-| `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | 0.4737 | 0.5368 | 0.6526 | 0.4052 | 0.4015 | 0.3460 | 0.720965 |
+| Mô hình | Alias | Chiều vector | Hit@10 | Recall@10 | MRR | nDCG@10 | Avg Top-1 Sim |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 1024 | **0.9053** | **0.6591** | **0.6528** | **0.5653** | 0.601330 |
+| `BAAI/bge-m3` | `bge-m3` | 1024 | 0.8842 | 0.6282 | 0.6229 | 0.5457 | 0.698086 |
+| `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | 0.8316 | 0.5502 | 0.5432 | 0.4549 | 0.678649 |
+| `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | 0.7684 | 0.5527 | 0.4983 | 0.4484 | 0.732983 |
+| `darklethelong/vnlegal-lal` | `vnlegal-lal` | 1024 | 0.7158 | 0.4647 | 0.4759 | 0.3903 | **0.933826** |
+| `BM25 (Sparse)` | `bm25` | N/A | 0.7368 | 0.4696 | 0.4101 | 0.3798 | N/A |
 
 **Nhận xét chính:**
-- `mainguyen9/vietlegal-harrier-0.6b` và `BAAI/bge-m3` đạt hiệu năng truy xuất dẫn đầu toàn bảng: Hit@10 đạt trên 83-86%, Recall@10 đạt trên 54-55%, MRR đạt 0.57-0.60.
-- `mainguyen9/vietlegal-e5` đạt độ phủ Top-10 tốt (77.89%) nhưng MRR thấp hơn (0.4064) do các chunk liên quan thường xuất hiện ở vị trí sâu hơn.
-- `darklethelong/vnlegal-lal` có điểm tương đồng Top-1 trung bình cao nhất nhóm (**0.930506**), nhưng các chỉ số truy xuất thực tế lại ở mức trung bình thấp. Điểm tương đồng cosin tuyệt đối không được dùng làm thước đo xếp hạng giữa các mô hình khác nhau.
+- `mainguyen9/vietlegal-harrier-0.6b` và `BAAI/bge-m3` đạt hiệu năng truy xuất dẫn đầu toàn bảng: Hit@10 đạt trên 88-90%, Recall@10 đạt trên 62-65%, MRR đạt 0.62-0.65.
+- `mainguyen9/vietlegal-e5` đạt độ phủ Top-10 khá tốt (83.16%) với MRR 0.5432.
+- `darklethelong/vnlegal-lal` có điểm tương đồng Top-1 trung bình cao nhất nhóm (**0.933826**), nhưng các chỉ số truy xuất thực tế lại thấp nhất. Điểm tương đồng cosin tuyệt đối không được dùng làm thước đo xếp hạng giữa các mô hình khác nhau.
 
 **Lệnh chạy đánh giá nhanh qua PowerShell:**
 ```powershell

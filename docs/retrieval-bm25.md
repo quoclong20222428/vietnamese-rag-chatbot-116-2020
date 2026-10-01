@@ -1,4 +1,4 @@
-﻿# BM25 Retriever và Kiến trúc Retrieval Mô-đun
+# BM25 Retriever và Kiến trúc Retrieval Mô-đun
 
 Tài liệu này mô tả module BM25 mới, định dạng kết quả truy xuất thống nhất, và kiến trúc retrieval sau khi tái cấu trúc.
 
@@ -69,7 +69,7 @@ BM25 corpus được nạp tự động từ bảng `legal_chunks` khi khởi t�
 from scripts.retrievers.bm25 import BM25Retriever
 
 retriever = BM25Retriever(database_url="postgresql://...")
-# Corpus (~617 chunks) được nạp và lập chỉ mục trong <100ms
+# Corpus (~618 chunks) được nạp và lập chỉ mục trong <100ms
 print(f"Số chunk đã lập chỉ mục: {retriever.corpus_size}")
 ```
 
@@ -83,7 +83,7 @@ retriever.reload_corpus()
 
 ```text
 1. __init__:  with connect(url) as conn   ← kết nối ngắn hạn để tải corpus
-2.              fetchall() → 617 rows
+2.              fetchall() → 618 rows
 3.            # connection tự đóng
 4. retrieve():  BM25.get_scores(tokens)   ← không cần DB, tính toán trong bộ nhớ
 ```
@@ -137,7 +137,7 @@ Hạng 1: [8.4231] nd116-dieu7-khoan1
 | `epsilon` | `0.25` | **Ngưỡng sàn IDF** — giới hạn dưới cho trọng số IDF, ngăn điểm số âm với từ xuất hiện trong phần lớn tài liệu. |
 | `tokenizer` | `default_tokenizer` | Hàm chuyển văn bản thành danh sách token. Áp dụng đồng nhất cho cả corpus và câu hỏi. |
 
-> **Lý do chọn giá trị mặc định**: Với corpus ~617 chunks văn bản pháp lý tiếng Việt, các giá trị này tuân theo khuyến nghị chuẩn của Okapi BM25. Nên tinh chỉnh dựa trên kết quả đánh giá thực tế trước khi đưa vào vận hành.
+> **Lý do chọn giá trị mặc định**: Với corpus ~618 chunks văn bản pháp lý tiếng Việt, các giá trị này tuân theo khuyến nghị chuẩn của Okapi BM25. Nên tinh chỉnh dựa trên kết quả đánh giá thực tế trước khi đưa vào vận hành.
 
 ```python
 # Ví dụ tùy chỉnh tham số
@@ -234,7 +234,24 @@ Mỗi embedding model có **cột embedding riêng** trong `legal_chunks` (ví d
 
 Trường `retrieval_method` trong `RetrievalResult` luôn là `"hnsw"` — không nhúng tên model vào kết quả để giữ tính nhất quán khi so sánh với BM25 và các phương pháp khác. Tên model được ghi riêng vào file báo cáo đánh giá (`logs/*.txt`).
 
-Các module đánh giá `scripts/evaluation/` cung cấp logic dùng lại. CLI `scripts/test_retrieval.py` hiện khởi tạo HNSW và không nhận tùy chọn BM25/method; do đó chưa có lệnh CLI benchmark BM25 hoặc so sánh BM25 với HNSW.
+Các module đánh giá `scripts/evaluation/` cung cấp logic dùng lại. CLI `scripts/test_retrieval.py` hiện đã hỗ trợ tuỳ chọn `--method` để chuyển đổi giữa HNSW và BM25 nhằm mục đích benchmark và so sánh:
+
+```powershell
+conda activate chatbot
+
+# Chạy đánh giá cho BM25
+python scripts/test_retrieval.py --method bm25
+
+# Chạy đánh giá cho HNSW (mặc định)
+python scripts/test_retrieval.py --method hnsw
+```
+
+Bên cạnh đó, bạn có thể thực hiện truy vấn độc lập thông qua công cụ CLI `scripts/run_bm25.py`:
+
+```powershell
+conda activate chatbot
+python scripts/run_bm25.py --query "Điều 4 Nghị định 116 quy định gì?" --top-k 5
+```
 
 ---
 
