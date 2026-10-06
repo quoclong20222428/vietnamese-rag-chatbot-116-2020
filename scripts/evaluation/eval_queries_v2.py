@@ -63,9 +63,13 @@ class EvalQueryV2:
     difficulty          : easy | medium | hard.
     is_answerable       : False for out_of_scope and invalid queries.
     relevant_chunks     : chunk_id -> relevance grade (1/2/3).
-    relevant_documents  : document titles containing supporting evidence.
+    relevant_documents  : document titles containing relevant supporting evidence.
+                           Includes _QA116 when one or more QA-reference chunks
+                           are present in relevant_chunks.
     requires_multi_chunk: True when >=2 chunks are needed to fully answer.
-    requires_multi_document: True when evidence spans >=2 documents.
+    requires_multi_document: True when evidence spans >=2 official legal
+                              documents; QA-reference chunks alone do not make
+                              this flag True.
     requires_verification: Legacy compatibility flag. Always False here.
     notes               : Hard negatives, boundary conditions, etc.
     """
@@ -108,8 +112,11 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         query="Khoản 1 điều 2 Nghị định 116/2020/NĐ-CP quy định thế nào về cách xác định số tháng làm tròn khi tính thời gian làm việc?",
         description="Exact: ND116 Dieu 2 Khoan 1 -- rounding rule for working months",
         category="exact", difficulty="easy", is_answerable=True,
-        relevant_chunks={"116-2020-ND-CP-dieu-2-khoan-1": 3},
-        relevant_documents=[_ND116],
+        relevant_chunks={
+            "116-2020-ND-CP-dieu-2-khoan-1": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-018": 3,
+        },
+        relevant_documents=[_ND116, _QA116],
         notes="Hard negative: 116-2020-ND-CP-dieu-2-khoan-3 (authority to certify, same article).",
     ),
     EvalQueryV2(  # E-02 | easy
@@ -128,8 +135,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="exact", difficulty="easy", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-4-khoan-1": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-026": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-001": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # E-04 | easy
         query="Khoản 4 điều 9 Nghị định 116/2020/NĐ-CP quy định gì đối với sinh viên thuộc đối tượng chính sách khó khăn khi bồi hoàn?",
@@ -142,8 +151,11 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         query="Khoản 6 điều 9 Nghị định 116/2020/NĐ-CP quy định hậu quả khi sinh viên hoặc gia đình không thực hiện nghĩa vụ bồi hoàn là gì?",
         description="Exact: ND116 Dieu 9 Khoan 6 -- consequences of non-compliance with reimbursement",
         category="exact", difficulty="easy", is_answerable=True,
-        relevant_chunks={"116-2020-ND-CP-dieu-9-khoan-6": 3},
-        relevant_documents=[_ND116],
+        relevant_chunks={
+            "116-2020-ND-CP-dieu-9-khoan-6": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-021": 2,
+        },
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # E-06 | easy
         query="Điểm a Khoản 1 điều 6 Nghị định 116 áp dụng cho sinh viên sư phạm nào sau khi tốt nghiệp?",
@@ -152,8 +164,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-1-diem-a": 3,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-031": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 1,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Diem a Khoan 2 is the exemption counterpart (grade 2).",
     ),
     EvalQueryV2(  # E-07 | easy
@@ -205,8 +219,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-3": 3,
             "116-2020-ND-CP-dieu-8-khoan-1": 2,
             "116-2020-ND-CP-dieu-8-khoan-2": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # E-12 | medium
         query="Khoản 3 điều 3 Nghị định 116/2020/NĐ-CP liệt kê các hình thức giao nhiệm vụ, đặt hàng hoặc đấu thầu đào tạo giáo viên gồm những hình thức nào?",
@@ -217,8 +232,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-3-khoan-3-diem-b": 3,
             "116-2020-ND-CP-dieu-3-khoan-3-diem-c": 3,
             "116-2020-ND-CP-dieu-3-khoan-1": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-010": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # E-13 | medium
         query="Cơ sở đào tạo giáo viên phải công khai những thông tin gì theo quy định tại Khoản 4 điều 12 Nghị định 116?",
@@ -260,8 +276,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-1-khoan-1": 3,
             "116-2020-ND-CP-dieu-4-khoan-1": 3,
             "116-2020-ND-CP-dieu-1-khoan-2-diem-a": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-026": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-02 | medium
         query="Sau khi ra trường, sinh viên sư phạm cần làm gì để không phải trả lại tiền đã nhận?",
@@ -272,8 +290,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-1-diem-a": 2,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-b": 1,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-c": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-029": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-03 | medium
         query="Một người học sư phạm ra trường làm việc ở đâu thì được tính là công tác trong ngành giáo dục?",
@@ -283,8 +303,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-2-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-2-khoan-2-diem-b": 3,
             "116-2020-ND-CP-dieu-2-khoan-3": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-031": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-04 | medium
         query="Học sư phạm mà giữa chừng bỏ học thì phải trả lại bao nhiêu tiền?",
@@ -294,8 +316,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-1-diem-c": 3,
             "116-2020-ND-CP-dieu-8-khoan-2": 3,
             "116-2020-ND-CP-dieu-8-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-027": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-028": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-05 | medium
         query="Đang học bị đình chỉ tạm thời thì Khoản hỗ trợ có bị dừng trong thời gian đó không?",
@@ -304,8 +328,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-3": 3,
             "116-2020-ND-CP-dieu-6-khoan-4": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-012": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-011": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Khoan 4 (illness permitted break) is a hard negative at grade 2.",
     ),
     EvalQueryV2(  # S-06 | medium
@@ -315,8 +341,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-4": 3,
             "116-2020-ND-CP-dieu-6-khoan-3": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-014": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-012": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-07 | medium
         query="Tiền hỗ trợ đã nhận gồm những Khoản nào khi tính số tiền phải hoàn trả?",
@@ -345,8 +373,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="semantic", difficulty="medium", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-9-khoan-5": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-10 | medium
         query="Địa phương phải gửi thông tin nhu cầu tuyển dụng giáo viên cho Bộ trước ngày nào?",
@@ -382,8 +411,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "LUAT-GIAO-DUC-2019-dieu-87-khoan-2": 3,
             "LUAT-GIAO-DUC-2019-dieu-87-khoan-3": 3,
             "LUAT-GIAO-DUC-2019-dieu-87-khoan-4": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 2,
         },
-        relevant_documents=[_LGD],
+        relevant_documents=[_LGD, _QA116],
     ),
     EvalQueryV2(  # S-13 | medium
         query="Người học thuộc hộ nghèo và hộ cận nghèo có thể được hưởng chính sách gì về học phí?",
@@ -391,8 +421,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="semantic", difficulty="medium", is_answerable=True,
         relevant_chunks={
             "LUAT-GIAO-DUC-2019-dieu-85-khoan-2": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 2,
         },
-        relevant_documents=[_LGD],
+        relevant_documents=[_LGD, _QA116],
     ),
     EvalQueryV2(  # S-14 | medium
         query="Theo Nghị định 60/2025, Bộ Giáo dục và Đào tạo phải thông báo chỉ tiêu tuyển sinh cho các cơ sở đào tạo giáo viên trước thời điểm nào?",
@@ -409,15 +440,17 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="semantic", difficulty="medium", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-5-khoan-1-diem-c": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-013": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-16 | medium
         query="Trường sư phạm có được phép giảm bớt số tháng hỗ trợ nếu đào tạo theo tín chỉ không?",
         description="Semantic: credit-based programme and support month cap (ND116 Dieu 4 Khoan 2)",
         category="semantic", difficulty="medium", is_answerable=True,
-        relevant_chunks={"116-2020-ND-CP-dieu-4-khoan-2": 3},
-        relevant_documents=[_ND116],
+        relevant_chunks={"116-2020-ND-CP-dieu-4-khoan-2": 3, "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-003": 2, "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 2},
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # S-17 | hard
         query="Quy định năm 2025 có thay đổi gì về thời hạn sinh viên phải nộp tiền bồi hoàn kể từ khi có thông báo?",
@@ -426,8 +459,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-4": 3,
             "116-2020-ND-CP-dieu-9-khoan-3": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-020": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-027": 2,
         },
-        relevant_documents=[_ND60, _ND116],
+        relevant_documents=[_ND60, _ND116, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # S-18 | hard
@@ -437,8 +472,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-1-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-1-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-031": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Hard negative: 116-2020-ND-CP-dieu-1-khoan-3 (exclusion for in-service upgrade training).",
     ),
     EvalQueryV2(  # S-19 | hard
@@ -449,8 +486,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-2-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 2,
             "116-2020-ND-CP-dieu-6-khoan-1-diem-a": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-029": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Dieu 2 Khoan 2 Diem a covers co so giao duc which includes private schools.",
     ),
     EvalQueryV2(  # S-20 | hard
@@ -472,8 +511,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-2": 2,
             "116-2020-ND-CP-dieu-13-khoan-1": 2,
             "116-2020-ND-CP-dieu-13-khoan-2": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-029": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # C-02 | medium
         query="Nếu tôi học sư phạm mà muốn chuyển sang ngành khác thì sao?",
@@ -517,8 +558,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-1-diem-b": 3,
             "116-2020-ND-CP-dieu-6-khoan-1-diem-c": 3,
             "116-2020-ND-CP-dieu-9-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-021": 1,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # C-06 | medium
@@ -540,8 +583,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-2-diem-c": 3,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # C-08 | medium
         query="Nghị định 116 có áp dụng đối với các tổ chức, cá nhân có nhu cầu đào tạo giáo viên không?",
@@ -558,8 +602,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="contextual", difficulty="medium", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-7-khoan-6": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-008": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # C-10 | medium
         query="điều kiện để đăng ký hưởng hỗ trợ tiền học phí và sinh hoạt phí là gì?",
@@ -570,8 +616,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-7-khoan-2": 3,
             "116-2020-ND-CP-dieu-7-khoan-3": 2,
             "116-2020-ND-CP-dieu-1-khoan-2-diem-a": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-005": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # C-11 | medium
@@ -581,8 +629,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-14": 3,
             "116-2020-ND-CP-dieu-9-khoan-6": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-021": 1,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="No explicit dispute-resolution clause; Dieu 14 is the closest provision.",
     ),
     EvalQueryV2(  # C-12 | medium
@@ -603,8 +652,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "LUAT-GIAO-DUC-2019-dieu-85-khoan-4": 3,
             "116-2020-ND-CP-dieu-1-khoan-1": 3,
             "60-2025-ND-CP-dieu-1-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-013": 2,
         },
-        relevant_documents=[_LGD, _ND116, _ND60],
+        relevant_documents=[_LGD, _ND116, _ND60, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # C-14 | hard
@@ -614,8 +665,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-4": 3,
             "116-2020-ND-CP-dieu-6-khoan-3": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-014": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-012": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # C-15 | hard
@@ -625,8 +678,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-1-khoan-2-diem-b": 3,
             "116-2020-ND-CP-dieu-3-khoan-3-diem-b": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-010": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # C-16 | hard
@@ -636,8 +690,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-1-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-1-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Dieu 1 Khoan 2 Diem a explicitly mentions 'lien thong chinh quy' as eligible.",
     ),
     EvalQueryV2(  # C-17 | hard
@@ -648,8 +704,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "60-2025-ND-CP-dieu-2-khoan-3": 3,
             "60-2025-ND-CP-dieu-2-khoan-2": 2,
             "116-2020-ND-CP-dieu-3-khoan-3-diem-c": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-010": 2,
         },
-        relevant_documents=[_ND60, _ND116],
+        relevant_documents=[_ND60, _ND116, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # C-18 | hard
@@ -661,8 +718,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 1,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-b": 1,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-c": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-028": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-025": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         notes="Khoan 2 exemptions do NOT cover disciplinary expulsion -- they are hard negatives (grade 1).",
     ),
     EvalQueryV2(  # C-19 | hard
@@ -681,8 +740,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="contextual", difficulty="hard", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-6-khoan-1-diem-c": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-012": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-025": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # C-21 | hard
         query="Trường hợp suy giảm khả năng lao động từ 61% trở lên, sinh viên sư phạm có phải hoàn trả tiền không?",
@@ -691,8 +752,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-5": 3,
             "116-2020-ND-CP-dieu-9-khoan-4": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-028": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-023": 2,
         },
-        relevant_documents=[_ND60, _ND116],
+        relevant_documents=[_ND60, _ND116, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # C-22 | hard
@@ -711,8 +774,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         category="contextual", difficulty="hard", is_answerable=True,
         relevant_chunks={
             "116-2020-ND-CP-dieu-2-khoan-3": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-018": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
     ),
     EvalQueryV2(  # C-24 | hard
         query="Khi kinh phí hỗ trợ được cấp theo dạng giao dự toán, trường sư phạm phải chuyển tiền sinh hoạt cho sinh viên muộn nhất vào ngày nào?",
@@ -721,8 +786,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "60-2025-ND-CP-dieu-1-khoan-4-sua-doi-bo-sung-dieu-5-khoan-2-diem-b": 3,
             "60-2025-ND-CP-dieu-1-khoan-4-sua-doi-bo-sung-dieu-5-khoan-2-diem-a": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-020": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-002": 2,
         },
-        relevant_documents=[_ND60],
+        relevant_documents=[_ND60, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # C-25 | hard
@@ -746,8 +813,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-b": 2,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-c": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-024": 3,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-02 | medium
@@ -758,8 +826,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-1": 3,
             "116-2020-ND-CP-dieu-8-khoan-2": 3,
             "116-2020-ND-CP-dieu-8-khoan-3": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-03 | medium
@@ -773,8 +843,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-9-khoan-4": 2,
             "116-2020-ND-CP-dieu-9-khoan-5": 2,
             "116-2020-ND-CP-dieu-9-khoan-6": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 1,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-04 | medium
@@ -804,8 +876,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-11-khoan-5": 3,
             "116-2020-ND-CP-dieu-11-khoan-6": 3,
             "116-2020-ND-CP-dieu-11-khoan-7": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-013": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-06 | medium
@@ -848,8 +921,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "60-2025-ND-CP-dieu-1-khoan-4-sua-doi-bo-sung-dieu-5-khoan-2-diem-b": 3,
             "60-2025-ND-CP-dieu-1-khoan-4-sua-doi-bo-sung-dieu-5-khoan-3": 2,
             "60-2025-ND-CP-dieu-1-khoan-4-sua-doi-bo-sung-dieu-5-khoan-4": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-002": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-013": 2,
         },
-        relevant_documents=[_ND60],
+        relevant_documents=[_ND60, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-09 | hard
@@ -891,8 +966,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-5-khoan-1-diem-b-2": 3,
             "116-2020-ND-CP-dieu-5-khoan-1-diem-c": 3,
             "116-2020-ND-CP-dieu-5-khoan-3": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-002": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-12 | hard
@@ -906,8 +982,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-5": 2,
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-6": 2,
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 1,
         },
-        relevant_documents=[_ND60],
+        relevant_documents=[_ND60, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # MC-13 | hard
@@ -968,8 +1046,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-1-khoan-1": 3,
             "60-2025-ND-CP-dieu-1-khoan-1": 3,
             "60-2025-ND-CP-dieu-1-khoan-2": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-001": 1,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-030": 1,
         },
-        relevant_documents=[_LGD, _ND116, _ND60],
+        relevant_documents=[_LGD, _ND116, _ND60, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # MD-02 | hard
@@ -982,8 +1062,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-1-diem-b": 3,
             "116-2020-ND-CP-dieu-6-khoan-1-diem-c": 3,
             "116-2020-ND-CP-dieu-8-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-023": 2,
         },
-        relevant_documents=[_LGD, _ND116],
+        relevant_documents=[_LGD, _ND116, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # MD-03 | hard
@@ -1069,8 +1151,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "LUAT-GIAO-DUC-2019-dieu-85-khoan-4": 3,
             "116-2020-ND-CP-dieu-4-khoan-1": 3,
             "116-2020-ND-CP-dieu-1-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-001": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-004": 2,
         },
-        relevant_documents=[_LGD, _ND116],
+        relevant_documents=[_LGD, _ND116, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # MD-09 | hard
@@ -1087,8 +1171,9 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "60-2025-ND-CP-dieu-1-khoan-3-sua-doi-bo-sung-dieu-3-khoan-2-diem-d": 2,
             "60-2025-ND-CP-dieu-2-khoan-2": 2,
             "60-2025-ND-CP-dieu-2-khoan-3": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-010": 2,
         },
-        relevant_documents=[_ND116, _ND60],
+        relevant_documents=[_ND116, _ND60, _QA116],
         requires_multi_document=True,
     ),
     EvalQueryV2(  # MD-10 | hard
@@ -1118,8 +1203,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-1": 3,
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 2,
             "116-2020-ND-CP-dieu-9-khoan-2": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-017": 3,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # CQ-02 | hard
@@ -1131,8 +1218,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-2": 3,
             "116-2020-ND-CP-dieu-8-khoan-1": 3,
             "116-2020-ND-CP-dieu-9-khoan-2": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-028": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-027": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # CQ-03 | hard
@@ -1145,8 +1234,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-8-khoan-1": 3,
             "116-2020-ND-CP-dieu-8-khoan-2": 2,
             "116-2020-ND-CP-dieu-2-khoan-1": 2,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-018": 1,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 1,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # CQ-04 | hard
@@ -1159,8 +1250,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "60-2025-ND-CP-dieu-1-khoan-11-sua-doi-bo-sung-dieu-13-khoan-3": 3,
             "60-2025-ND-CP-dieu-1-khoan-7-sua-doi-bo-sung-dieu-9-khoan-5": 2,
             "116-2020-ND-CP-dieu-9-khoan-3": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-022": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-016": 1,
         },
-        relevant_documents=[_ND60, _ND116],
+        relevant_documents=[_ND60, _ND116, _QA116],
         requires_multi_chunk=True,
         requires_multi_document=True,
     ),
@@ -1197,8 +1290,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-4-khoan-1": 2,
             "LUAT-GIAO-DUC-2019-dieu-85-khoan-2": 3,
             "LUAT-GIAO-DUC-2019-dieu-85-khoan-4": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-007": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-001": 2,
         },
-        relevant_documents=[_ND116, _LGD],
+        relevant_documents=[_ND116, _LGD, _QA116],
         requires_multi_document=True,
         requires_multi_chunk=True,
     ),
@@ -1237,8 +1332,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
             "116-2020-ND-CP-dieu-6-khoan-2-diem-a": 3,
             "116-2020-ND-CP-dieu-2-khoan-3": 2,
             "116-2020-ND-CP-dieu-6-khoan-1-diem-a": 1,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-019": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-009": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # CQ-10 | hard
@@ -1248,8 +1345,10 @@ EVAL_QUERIES_V2: list[EvalQueryV2] = [
         relevant_chunks={
             "116-2020-ND-CP-dieu-4-khoan-1": 3,
             "116-2020-ND-CP-dieu-4-khoan-2": 3,
+                    "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-001": 2,
+            "hoi-dap-nghi-dinh-116-2020-nd-cp-qa-003": 2,
         },
-        relevant_documents=[_ND116],
+        relevant_documents=[_ND116, _QA116],
         requires_multi_chunk=True,
     ),
     EvalQueryV2(  # OOS-01 | easy

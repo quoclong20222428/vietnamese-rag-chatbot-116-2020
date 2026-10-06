@@ -12,16 +12,18 @@ Sau khi tái cấu trúc, các module retrieval được tổ chức trong `scri
 scripts/
 ├── retrievers/hnsw.py       ← HNSW implementation (Retriever)
 ├── retrievers/bm25.py       ← BM25 implementation (BM25Retriever)
+├── retrievers/hybrid.py     ← rank fusion (HybridRetriever)
 ├── retrieval_types.py       ← hợp đồng kết quả dùng chung
 ├── embeddings/              ← registry và embedding backends
 ├── indexing/                ← implementation import và indexing
 ├── evaluation/              ← implementation đánh giá dùng lại
 ├── index_embeddings.py      ← CLI sinh và lưu embedding vào PostgreSQL
-└── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
+└── test_retrieval.py        ← CLI đánh giá HNSW, BM25 và Hybrid (EvalQueryV2)
 
 tests/
-├── test_retrieval.py      ← Unit tests cho HNSW Retriever (209 test cases)
-├── test_bm25_retriever.py ← Unit tests cho BM25Retriever (61 test cases, mới)
+├── test_retrieval.py      ← Unit tests cho HNSW Retriever
+├── test_bm25_retriever.py ← Unit tests cho BM25Retriever
+├── test_hybrid_retriever.py ← Unit tests cho RRF, Hybrid và evaluation
 └── test_embedding.py      ← Unit tests cho EmbeddingModel
 ```
 
@@ -31,6 +33,7 @@ tests/
 |---|---|
 | `scripts/retrievers/hnsw.py` | HNSW vector retrieval qua pgvector. Quản lý cột embedding theo từng model. |
 | `scripts/retrievers/bm25.py` | BM25 lexical retrieval. Không phụ thuộc vào embedding model. |
+| `scripts/retrievers/hybrid.py` | Gọi các retriever hiện có và hợp nhất candidate bằng RRF theo rank. |
 | `scripts/embeddings/model_registry.py` | Cấu hình tập trung cho embedding models được hỗ trợ. |
 | `scripts/embeddings/embedding.py` | Implementation tải và chạy inference; được import bởi indexing/retrieval. |
 
@@ -205,7 +208,7 @@ class RetrievalResult:
 
 ### ⚠️ Điểm số không thể so sánh trực tiếp giữa các thuật toán
 
-BM25 score `8.5` và cosine similarity `0.87` là **hai thang đo hoàn toàn khác nhau** — không được cộng, so sánh hay kết hợp trực tiếp mà không có bước chuẩn hóa. Luôn kiểm tra `score_type` trước khi diễn giải điểm số. Chuẩn hóa cho hybrid retrieval sẽ được thực hiện riêng khi triển khai RRF (xem mục 9).
+BM25 score `8.5` và cosine similarity `0.87` là **hai thang đo hoàn toàn khác nhau** — không được cộng, so sánh hay kết hợp trực tiếp. Hybrid dùng rank-based RRF, không cần chuẩn hóa raw score; xem [tài liệu Hybrid Search](retrieval-hybrid.md).
 
 ---
 
@@ -255,21 +258,20 @@ python scripts/run_bm25.py --query "Điều 4 Nghị định 116 quy định gì
 
 ---
 
-## 9. Các tính năng chưa được triển khai
+## 9. Trạng thái các phương pháp retrieval
 
 | Tính năng | Trạng thái | Ghi chú |
 |---|:---:|---|
-| **Hybrid retrieval (BM25 + HNSW)** | ❌ Chưa triển khai | Cần chuẩn hóa điểm số từ hai nguồn |
-| **Reciprocal Rank Fusion (RRF)** | ❌ Chưa triển khai | Kết hợp theo thứ hạng, không cần chuẩn hóa điểm |
+| **Hybrid retrieval (BM25 + HNSW)** | ✅ Đã triển khai | `scripts/retrievers/hybrid.py`; dùng chung `RetrievalResult` |
+| **Reciprocal Rank Fusion (RRF)** | ✅ Đã triển khai | Fusion theo rank; mặc định `rrf_k=60` |
 | **Xếp hạng lại (Reranking)** | ❌ Chưa triển khai | Cross-encoder reranker |
-| **Chuẩn hóa điểm số** | ❌ Chưa triển khai | Min-max hoặc Z-score cho hybrid |
+| **Chuẩn hóa raw score** | Không dùng trong baseline | HNSW và BM25 score không được cộng trực tiếp |
 
 ### Lưu ý thiết kế cho tương lai
 
 - **BM25 là truy xuất từ khóa**, **HNSW là truy xuất ngữ nghĩa** — hai phương pháp bổ sung cho nhau, phù hợp để kết hợp theo kiến trúc hybrid.
-- **Chuẩn hóa điểm số** phải là bước xử lý độc lập, không được thay đổi `score` gốc trong `RetrievalResult`.
-- **RRF chỉ dùng thứ hạng (`rank`)**, không cần điểm số — đây là lý do `rank` được lưu trong `RetrievalResult`.
-- Kết quả hybrid nên dùng `retrieval_method = "rrf"` để phân biệt rõ nguồn gốc.
+- **RRF chỉ dùng thứ hạng (`rank`)**, không cộng điểm gốc — `RetrievalResult` giữ riêng `score_type` của từng phương pháp.
+- Kết quả Hybrid dùng `retrieval_method = "hybrid"` và `score_type = "rrf"`.
 
 ---
 
@@ -278,10 +280,10 @@ python scripts/run_bm25.py --query "Điều 4 Nghị định 116 quy định gì
 ```powershell
 conda activate chatbot
 
-# Chỉ BM25 tests (61 test cases, không cần DB hay model)
+# Chỉ BM25 tests (không cần DB hay embedding model)
 python -m pytest tests/test_bm25_retriever.py -v
 
-# Toàn bộ test suite (BM25 + HNSW + Embedding)
+# Toàn bộ test suite (BM25 + HNSW + Hybrid + Embedding)
 python -m pytest tests/ -v
 ```
 
@@ -292,6 +294,7 @@ Kết quả phụ thuộc vào môi trường và các kiểm tra integration hi
 ## 11. Xem thêm
 
 - [Retrieval — HNSW Vector Search](retrieval.md)
+- [Hybrid Search — HNSW + BM25 + RRF](retrieval-hybrid.md)
 - [Embedding và Indexing](embedding-and-indexing.md)
 - [Chuyển đổi Embedding Model](embedding-model-switching.md)
 - [Đánh giá Retrieval](retrieval-evaluation.md)

@@ -21,7 +21,7 @@ scripts/import_legal_data.py  →  PostgreSQL (documents, legal_chunks)
         ↓
 scripts/index_embeddings.py   →  embedding + HNSW index
         ↓
-scripts/test_retrieval.py     →  đánh giá retrieval HNSW
+scripts/test_retrieval.py     →  đánh giá retrieval HNSW, BM25 hoặc Hybrid RRF
 ```
 
 ## Quy trình chạy Python chính
@@ -67,7 +67,15 @@ conda activate chatbot
    python scripts/test_retrieval.py --top-k 10 --ef-search 80
    ```     
 
-Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts/embeddings/`, `scripts/indexing/`, `scripts/retrievers/` và `scripts/evaluation/` chứa implementation được các CLI import. BM25 là retriever implementation riêng, chưa có CLI benchmark riêng trong repository.
+Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts/embeddings/`, `scripts/indexing/`, `scripts/retrievers/` và `scripts/evaluation/` chứa implementation được các CLI import. HNSW, BM25 và Hybrid RRF có thể được đánh giá riêng trên cùng `EvalQueryV2`.
+
+Chạy baseline Hybrid RRF:
+
+```powershell
+python scripts/test_retrieval.py --method hybrid --candidate-k 20 --top-k 10 --rrf-k 60 --ef-search 80
+```
+
+Thiết kế, cấu hình và benchmark so sánh gần nhất: [Hybrid Search](docs/retrieval-hybrid.md) và [Đánh giá Retrieval](docs/retrieval-evaluation.md).
 
 ---
 
@@ -94,8 +102,9 @@ Các script cấp cao nhất trong `scripts/` là CLI; package con như `scripts
 | Vector hóa BGE-M3 — 618/618 chunks, 1024 chiều | ✅ Hoàn thành |
 | Chỉ mục HNSW (`vector_cosine_ops`, m=16, ef_construction=64) | ✅ Hoàn thành |
 | Module Vector Retrieval (`scripts/retrievers/hnsw.py`) | ✅ Hoàn thành |
+| Hybrid Search (HNSW + BM25 + RRF) | ✅ Hoàn thành |
 | Đánh giá Retrieval (EvalQueryV2 — 100 câu hỏi, ground truth phân cấp và chia mức) | ✅ Hoàn thành |
-| Bộ kiểm thử tự động — 91/91 tests passed (embedding + retrieval) | ✅ Hoàn thành |
+| Bộ kiểm thử tự động (embedding, HNSW, BM25, Hybrid) | ✅ Hoàn thành |
 | Nhúng tài liệu nhận biết siêu dữ liệu (Metadata-aware) | ✅ Hoàn thành |
 | Đánh giá so sánh 5 mô hình embedding | ✅ Hoàn thành |
 
@@ -120,34 +129,35 @@ Chi tiết đầy đủ: [Lịch sử phát triển Retrieval](docs/retrieval-de
 
 ## Kết quả đánh giá Retrieval
 
-Đánh giá thực nghiệm được thực hiện trên tập benchmark chuẩn **`EvalQueryV2`** (100 câu hỏi: 95 câu hỏi hợp lệ, 5 câu hỏi ngoài phạm vi OOS / không hợp lệ) trên toàn bộ 618 chunks pháp lý trong cơ sở dữ liệu NeonDB PostgreSQL (`pgvector`), sử dụng chỉ mục HNSW (`vector_cosine_ops`, `ef_search=80`, `top_k=10`).
+### Benchmark mới nhất — EvalQueryV2 2026-10-06 (Hybrid RRF + Cross-Encoder Rerank)
 
-### Bảng kết quả tổng hợp 5 mô hình embedding
+Cấu hình: `candidate-k=40`, `top-k=20`, `rrf-k=60`, `ef_search=80`, reranker `BAAI/bge-reranker-v2-m3`, `rerank-top-k=10`. Dataset `EvalQueryV2` sau update (QA-reference chunks có thể có grade 2/3).
 
-Nguồn dữ liệu: 5 tệp log benchmark chính thức tại thư mục `logs/` (ngưỡng liên quan nhị phân `grade >= 2`, nDCG có trọng số đa mức `1, 2, 3`):
-
-| Mô hình | Alias | Chiều vector | Hit@10 | Recall@10 | MRR | nDCG@10 | Avg Top-1 Sim |
-|---|---|---:|---:|---:|---:|---:|---:|
-| `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 1024 | **0.9053** | **0.6591** | **0.6528** | **0.5653** | 0.601330 |
-| `BAAI/bge-m3` | `bge-m3` | 1024 | 0.8842 | 0.6282 | 0.6229 | 0.5457 | 0.698086 |
-| `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 1024 | 0.8316 | 0.5502 | 0.5432 | 0.4549 | 0.678649 |
-| `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 1024 | 0.7684 | 0.5527 | 0.4983 | 0.4484 | 0.732983 |
-| `darklethelong/vnlegal-lal` | `vnlegal-lal` | 1024 | 0.7158 | 0.4647 | 0.4759 | 0.3903 | **0.933826** |
-| `BM25 (Sparse)` | `bm25` | N/A | 0.7368 | 0.4696 | 0.4101 | 0.3798 | N/A |
+| Model | Alias | Hit@3 | Hit@5 | Hit@10 | Recall@3 | Recall@5 | Recall@10 | Precision@3 | Precision@5 | Precision@10 | MRR | nDCG@3 | nDCG@5 | nDCG@10 | Runtime |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `BAAI/bge-m3` | `bge-m3` | 0.8421 | 0.8737 | 0.9053 | 0.4263 | 0.5244 | **0.6169** | 0.4702 | 0.3453 | **0.2126** | **0.7568** | 0.5317 | 0.5409 | **0.5713** | 197.27s |
+| `mainguyen9/vietlegal-harrier-0.6b` | `vietlegal-harrier` | 0.8316 | 0.9158 | **0.9368** | 0.4344 | 0.5355 | 0.6124 | 0.4632 | 0.3389 | 0.2042 | 0.7299 | 0.5231 | 0.5359 | 0.5626 | 190.04s |
+| `mainguyen9/vietlegal-e5` | `vietlegal-e5` | 0.8421 | 0.8947 | 0.9158 | 0.4273 | 0.5091 | 0.5944 | 0.4596 | 0.3347 | 0.2042 | 0.7362 | 0.5105 | 0.5156 | 0.5468 | 193.47s |
+| `jinaai/jina-embeddings-v3-hf` | `jina-v3` | 0.7895 | 0.8526 | 0.8632 | 0.4064 | 0.4770 | 0.5385 | 0.4211 | 0.3011 | 0.1811 | 0.7028 | 0.5083 | 0.5117 | 0.5318 | 177.13s |
+| `darklethelong/vnlegal-lal` | `vnlegal-lal` | 0.7789 | 0.8211 | 0.8526 | 0.3985 | 0.4683 | 0.5176 | 0.4281 | 0.3011 | 0.1726 | 0.6875 | 0.4890 | 0.4887 | 0.5023 | 183.77s |
 
 **Nhận xét chính:**
-- `mainguyen9/vietlegal-harrier-0.6b` và `BAAI/bge-m3` đạt hiệu năng truy xuất dẫn đầu toàn bảng: Hit@10 đạt trên 88-90%, Recall@10 đạt trên 62-65%, MRR đạt 0.62-0.65.
-- `mainguyen9/vietlegal-e5` đạt độ phủ Top-10 khá tốt (83.16%) với MRR 0.5432.
-- `darklethelong/vnlegal-lal` có điểm tương đồng Top-1 trung bình cao nhất nhóm (**0.933826**), nhưng các chỉ số truy xuất thực tế lại thấp nhất. Điểm tương đồng cosin tuyệt đối không được dùng làm thước đo xếp hạng giữa các mô hình khác nhau.
+- `bge-m3` mạnh nhất tổng thể về Recall@10 (0.6169), Precision@10 (0.2126), MRR (0.7568) và nDCG@10 (0.5713).
+- `vietlegal-harrier` có Hit@10 cao nhất (0.9368), phù hợp khi ưu tiên coverage/hit probability.
+- `vietlegal-e5` thuộc nhóm trên thứ ba, kết quả khá cân bằng.
+- `jina-v3` thấp hơn nhóm dẫn đầu về coverage.
+- `vnlegal-lal` thấp nhất ở các metric tổng hợp chính.
+- **Không nên so sánh trực tiếp** bảng 2026-10-06 với bảng 2026-10-02 vì khác phương pháp retrieval và khác ground truth semantics.
 
-**Lệnh chạy đánh giá nhanh qua PowerShell:**
+**Lệnh tái lập (Hybrid + Rerank):**
 ```powershell
 conda activate chatbot
-$env:EMBEDDING_MODEL = "bge-m3"
-python scripts/test_retrieval.py --top-k 10 --ef-search 80
+$env:EMBEDDING_MODEL="bge-m3"; python scripts/test_retrieval.py --method hybrid --candidate-k 40 --top-k 20 --rrf-k 60 --ef-search 80 --rerank --rerank-model BAAI/bge-reranker-v2-m3 --rerank-top-k 10
 ```
 
-> Chi tiết đầy đủ về phương pháp luận, giải thích bản chất từng chỉ số và tham số kỹ thuật, ground truth phân cấp chia mức, phân tích chuyên sâu theo danh mục/độ khó và hướng dẫn tái lập xem tại: [Đánh giá Retrieval](docs/retrieval-evaluation.md).
+> Chi tiết đầy đủ về phương pháp luận, ground truth phân cấp, phân tích theo category và tất cả caveats: [Đánh giá Retrieval](docs/retrieval-evaluation.md).
+
+
 
 ---
 
@@ -164,7 +174,7 @@ scripts/
 ├── embeddings/              ← embedding backend, model registry
 ├── evaluation/              ← dataset, matching, metrics, runner, reporting
 ├── indexing/                ← embedding_index, import_data
-├── retrievers/              ← bm25, hnsw
+├── retrievers/              ← bm25, hnsw, hybrid
 ├── environment.py           ← cấu hình môi trường (.env)
 ├── database.py              ← kết nối PostgreSQL
 ├── retrieval_types.py       ← hợp đồng RetrievalResult dùng chung
@@ -172,11 +182,13 @@ scripts/
 ├── import_legal_data.py     ← CLI wrapper cho import_data
 ├── validate_legal_chunks.py ← CLI wrapper cho validation
 ├── index_embeddings.py      ← CLI wrapper cho indexing
-├── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
+├── test_retrieval.py        ← CLI đánh giá HNSW, BM25, Hybrid (EvalQueryV2)
 └── gpu_smoke_test.py
 tests/
 ├── test_embedding.py        ← 30 unit tests
-└── test_retrieval.py        ← 209 unit tests
+├── test_retrieval.py        ← HNSW unit tests
+├── test_bm25_retriever.py   ← BM25 unit tests
+└── test_hybrid_retriever.py ← RRF, Hybrid và evaluation integration
 logs/
 ├── retrieval_*.txt          ← báo cáo đánh giá kèm nhãn thời gian
 └── <model>_<timestamp>.txt  ← báo cáo benchmark từng mô hình embedding
@@ -199,5 +211,6 @@ data/
 | [Embedding & Indexing](docs/embedding-and-indexing.md) | BGE-M3, HNSW, cấu hình, kết quả indexing |
 | [Chuyển đổi mô hình Embedding](docs/embedding-model-switching.md) | Hướng dẫn chuyển đổi giữa các mô hình embedding |
 | [Retrieval](docs/retrieval.md) | Kiến trúc, module, cách dùng, unit test |
+| [Hybrid Search](docs/retrieval-hybrid.md) | HNSW + BM25, RRF, cấu hình và diagnostics |
 | [Lịch sử phát triển Retrieval](docs/retrieval-development-history.md) | Text-only → cải tiến đánh giá → metadata-aware |
 | [Đánh giá Retrieval](docs/retrieval-evaluation.md) | Phương pháp luận, định nghĩa chỉ số, điều kiện thực nghiệm, kết quả benchmark 6 mô hình và phân tích chuyên sâu |

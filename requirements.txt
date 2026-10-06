@@ -33,7 +33,7 @@ pgvector>=0.3.0
 FlagEmbedding>=1.2.9
 
 # Embedding models: Sentence Transformers for vnlegal-lal, vietlegal-harrier,
-# vietlegal-e5, and jina-embeddings-v3
+# vietlegal-e5, jina-embeddings-v3, and Cross-Encoder re-ranker (bge-reranker-v2-m3).
 sentence-transformers>=3.0.0
 
 

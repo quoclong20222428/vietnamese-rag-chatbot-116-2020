@@ -12,8 +12,9 @@ Tầng Retrieval nhận câu hỏi bằng ngôn ngữ tự nhiên và trả về
 |---|---|---|
 | **HNSW Vector** | `scripts/retrievers/hnsw.py` (`Retriever`) | Cosine similarity qua pgvector + HNSW index. Cần embedding model. |
 | **BM25** | `scripts/retrievers/bm25.py` (`BM25Retriever`) | Tần suất từ (Okapi BM25). Không cần embedding model. |
+| **Hybrid RRF** | `scripts/retrievers/hybrid.py` (`HybridRetriever`) | Candidate từ HNSW và BM25 được hợp nhất theo rank. |
 
-Cả hai đều trả về danh sách `RetrievalResult` — định dạng kết quả chung. CLI đánh giá hiện tại (`scripts/test_retrieval.py`) chỉ chạy HNSW; BM25 là implementation có thể gọi từ code, chưa có CLI để benchmark BM25 riêng.
+Ba phương pháp đều trả về danh sách `RetrievalResult` — định dạng kết quả chung. CLI `scripts/test_retrieval.py` hỗ trợ đánh giá HNSW, BM25 và Hybrid trên cùng `EvalQueryV2`.
 
 ### Kiến trúc HNSW Vector Retrieval
 
@@ -61,9 +62,10 @@ scripts/
 └── test_retrieval.py        ← CLI đánh giá HNSW (EvalQueryV2, 100 câu hỏi)
 
 tests/
-├── test_retrieval.py      ← Unit tests HNSW (209 test cases)
-├── test_bm25_retriever.py ← Unit tests BM25 (61 test cases)
-└── test_embedding.py      ← Unit tests Embedding (30 test cases)
+├── test_retrieval.py      ← Unit tests HNSW
+├── test_bm25_retriever.py ← Unit tests BM25
+├── test_hybrid_retriever.py ← Unit tests RRF, Hybrid và evaluation integration
+└── test_embedding.py      ← Unit tests embedding
 ```
 
 ---
@@ -80,7 +82,15 @@ python scripts/test_retrieval.py --top-k 10 --ef-search 80
 python scripts/test_retrieval.py --query "Điều kiện được hưởng chính sách hỗ trợ là gì?" --top-k 5
 ```
 
-CLI này nhận `--query TEXT`, `--top-k N` (mặc định 10), `--ef-search N` (mặc định 80), và `--min-grade G` (mặc định 2). Mô hình được chọn qua biến môi trường `EMBEDDING_MODEL` hoặc trong `.env` (mặc định `bge-m3`). Cột vector embedding tương ứng phải tồn tại trong cơ sở dữ liệu trước khi chạy đánh giá. BM25 và HNSW có thể được gọi riêng từ implementation; hiện không có lệnh CLI để đánh giá BM25 hoặc so sánh hai phương pháp.
+CLI nhận `--method hnsw|bm25|hybrid`, `--query TEXT`, `--top-k N` (mặc định 10), `--ef-search N` (mặc định 80) và `--min-grade G` (mặc định 2). Hybrid bổ sung `--candidate-k N` (mặc định 20) và `--rrf-k N` (mặc định 60). Mô hình được chọn qua `EMBEDDING_MODEL` hoặc `.env` (mặc định `bge-m3`). Cột vector embedding tương ứng phải tồn tại trong database trước khi chạy HNSW hoặc Hybrid.
+
+```powershell
+conda activate chatbot
+$env:EMBEDDING_MODEL = "bge-m3"
+python scripts/test_retrieval.py --method hnsw --top-k 10 --ef-search 80
+python scripts/test_retrieval.py --method bm25 --top-k 10
+python scripts/test_retrieval.py --method hybrid --candidate-k 20 --top-k 10 --rrf-k 60 --ef-search 80
+```
 
 Kết quả retrieval evaluation đầy đủ được lưu tự động trong `logs/` với tên model, thời điểm chạy và hậu tố duy nhất theo chuẩn định dạng báo cáo V2.
 
@@ -210,13 +220,14 @@ conda activate chatbot
 python -m pytest tests/ -v
 ```
 
-Suite kiểm tra implementation của embedding, HNSW và BM25; một số integration check có thể cần cấu hình riêng.
+Suite kiểm tra embedding, HNSW, BM25 và Hybrid. Unit tests dùng mock cho database/model; benchmark đầy đủ cần `DATABASE_URL`, PostgreSQL và cache/tải được model embedding đã chọn.
 
 ---
 
 ## Xem thêm
 
 - [BM25 Retriever và Kiến trúc Mô-đun](retrieval-bm25.md)
+- [Hybrid Search — HNSW + BM25 + RRF](retrieval-hybrid.md)
 - [Embedding và Indexing](embedding-and-indexing.md)
 - [Lịch sử phát triển Retrieval](retrieval-development-history.md)
 - [Đánh giá Retrieval](retrieval-evaluation.md)

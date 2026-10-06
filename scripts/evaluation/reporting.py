@@ -46,6 +46,9 @@ def render_full_report_v2(
     end_time: datetime | None = None,
     top_k: int | None = None,
     ef_search: int | None = None,
+    candidate_k: int | None = None,
+    rrf_k: int | None = None,
+    top1_score_label: str = "Average Top-1 score (diagnostic only)",
     cli_args_str: str = "",
     # Database state
     state: dict[str, Any] | None = None,
@@ -101,6 +104,10 @@ def render_full_report_v2(
         lines.append(f"Top-K:             {top_k}")
     if ef_search is not None:
         lines.append(f"ef_search:         {ef_search}")
+    if candidate_k is not None:
+        lines.append(f"candidate_k:       {candidate_k}")
+    if rrf_k is not None:
+        lines.append(f"RRF k:             {rrf_k}")
     if cli_args_str:
         lines.append(f"CLI arguments:     {cli_args_str}")
     lines.append("")
@@ -110,10 +117,11 @@ def render_full_report_v2(
         lines.append("Database State")
         lines.append("-" * 14)
         lines.append(f"Total chunks:      {total_chunks}")
-        lines.append(f"Embedded chunks:   {embedded_chunks}")
-        lines.append(f"Missing:           {missing_embeddings}")
-        lines.append(f"Coverage:          {coverage_pct:.1f}% ({embedded_chunks}/{total_chunks})")
-        lines.append(f"HNSW index:        {'EXISTS' if hnsw_exists else 'NOT FOUND'}")
+        if "embedded_chunks" in _state:
+            lines.append(f"Embedded chunks:   {embedded_chunks}")
+            lines.append(f"Missing:           {missing_embeddings}")
+            lines.append(f"Coverage:          {coverage_pct:.1f}% ({embedded_chunks}/{total_chunks})")
+            lines.append(f"HNSW index:        {'EXISTS' if hnsw_exists else 'NOT FOUND'}")
         lines.append("")
 
     # ==========================================================
@@ -155,12 +163,99 @@ def render_full_report_v2(
                 lines.append(f"{name}: {value:.4f}")
             else:
                 lines.append(f"{name}: N/A")
-        top1_avg = metrics.get("Average_top1_similarity")
+        top1_avg = metrics.get("Average_top1_score", metrics.get("Average_top1_similarity"))
         if top1_avg is not None:
-            lines.append(f"Average Top-1 Similarity: {top1_avg:.6f}")
+            lines.append(f"{top1_score_label}: {top1_avg:.6f}")
     else:
         lines.append("N/A (no answerable queries evaluated)")
     lines.append("")
+
+    hybrid_records = [
+        rec for rec in query_records
+        if rec.query.is_answerable and rec.query.relevant_chunks
+        if isinstance(getattr(rec, "diagnostics", None), dict)
+        and rec.diagnostics.get("sources")
+    ]
+    if hybrid_records:
+        lines.append("Hybrid Candidate Diagnostics")
+        lines.append("-" * 28)
+        lines.append(f"Queries with candidate diagnostics: {len(hybrid_records)}")
+        source_names = sorted({
+            name
+            for rec in hybrid_records
+            for name in rec.diagnostics.get("sources", {})
+        })
+        source_hits = {name: 0 for name in source_names}
+        only_hits = {name: [] for name in source_names}
+        overlap_values: list[float] = []
+        pair_success_count = 0
+        source_failures = {name: 0 for name in source_names}
+        top1_matches = {"hnsw": 0, "bm25": 0}
+        for rec in hybrid_records:
+            relevant = {
+                chunk_id for chunk_id, grade in rec.query.relevant_chunks.items()
+                if grade >= min_grade
+            }
+            source_ids = {
+                name: {
+                    item.get("chunk_id")
+                    for item in rec.diagnostics["sources"].get(name, {}).get("candidates", [])
+                    if item.get("chunk_id")
+                }
+                for name in source_names
+            }
+            top1_id = _get_chunk_id(rec.results[0]) if rec.results else None
+            for name in top1_matches:
+                candidates = rec.diagnostics["sources"].get(name, {}).get("candidates", [])
+                first_candidate = candidates[0].get("chunk_id") if candidates else None
+                if top1_id is not None and top1_id == first_candidate:
+                    top1_matches[name] += 1
+            hits = {name: bool(source_ids[name] & relevant) for name in source_names}
+            errors = rec.diagnostics.get("errors", {})
+            for name, found in hits.items():
+                source_hits[name] += int(found)
+                if name in errors:
+                    source_failures[name] += 1
+                if not errors and found and sum(hits.values()) == 1:
+                    only_hits[name].append(rec)
+            if not errors and {"hnsw", "bm25"}.issubset(source_names):
+                pair_success_count += 1
+                left, right = "hnsw", "bm25"
+                union = source_ids[left] | source_ids[right]
+                overlap_values.append(
+                    len(source_ids[left] & source_ids[right]) / len(union) if union else 1.0
+                )
+        for name in source_names:
+            lines.append(
+                f"{name} candidate hits on answerable queries: "
+                f"{source_hits[name]}/{len(hybrid_records)}"
+            )
+            lines.append(
+                f"{name}-only relevant candidate hits (both sources succeeded): "
+                f"{len(only_hits[name])}"
+            )
+            if only_hits[name]:
+                query_ids = ", ".join(
+                    f"{rec.index:03d} ({rec.query.category})"
+                    for rec in only_hits[name]
+                )
+                lines.append(f"  Queries: {query_ids}")
+            if source_failures[name]:
+                lines.append(f"{name} retrieval failures: {source_failures[name]}")
+        if overlap_values and pair_success_count:
+            lines.append(
+                "Average HNSW/BM25 candidate Jaccard overlap "
+                f"(both succeeded, n={pair_success_count}): "
+                f"{sum(overlap_values) / len(overlap_values):.4f}"
+            )
+        if {"hnsw", "bm25"}.issubset(source_names):
+            lines.append(
+                f"Hybrid top-1 matched HNSW rank 1: {top1_matches['hnsw']}/{len(hybrid_records)}"
+            )
+            lines.append(
+                f"Hybrid top-1 matched BM25 rank 1: {top1_matches['bm25']}/{len(hybrid_records)}"
+            )
+        lines.append("")
 
     # ==========================================================
     # Per-Category Results
@@ -293,6 +388,18 @@ def render_full_report_v2(
         else:
             lines.append("Ground truth: none (unanswerable query)")
 
+        diagnostics = getattr(rec, "diagnostics", None) or {}
+        if diagnostics.get("sources"):
+            lines.append("Hybrid candidate sources:")
+            for name, source in diagnostics["sources"].items():
+                candidate_ids = ", ".join(
+                    f"{item['chunk_id']}@{item['rank']}"
+                    for item in source.get("candidates", [])
+                ) or "(none)"
+                lines.append(f"  {name} ({source.get('count', 0)}): {candidate_ids}")
+            for name, error in diagnostics.get("errors", {}).items():
+                lines.append(f"  {name} retrieval error: {error}")
+
         lines.append("")
         lines.append("-" * 60)
         lines.append("RETRIEVAL RESULTS")
@@ -313,6 +420,16 @@ def render_full_report_v2(
                 lines.append(f"Score:    {score_text}")
                 lines.append(f"Chunk ID: {chunk_id}")
                 lines.append(f"Grade:    {grade}")
+                fusion = meta.get("retrieval_diagnostics") or {}
+                if fusion:
+                    lines.append(f"RRF score: {fusion.get('rrf_score', score_text)}")
+                    source_ranks = fusion.get("source_ranks", {})
+                    lines.append(
+                        "Source ranks: " + ", ".join(
+                            f"{name}={rank if rank is not None else 'not retrieved'}"
+                            for name, rank in source_ranks.items()
+                        )
+                    )
 
                 if _is_legal_source(meta):
                     if meta.get("document_title"):
@@ -339,7 +456,7 @@ def render_full_report_v2(
         lines.append("QUERY SUMMARY")
         lines.append("-" * 60)
         lines.append("")
-        lines.append(f"Best similarity:      {f'{rec.best_score:.6f}' if rec.best_score is not None else 'N/A'}")
+        lines.append(f"Best score (diagnostic): {f'{rec.best_score:.6f}' if rec.best_score is not None else 'N/A'}")
         if query.is_answerable:
             frr = rec.first_relevant_rank
             lines.append(f"First relevant rank:  {frr if frr is not None else 'NOT FOUND'}")

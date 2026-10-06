@@ -35,6 +35,7 @@ class QueryEvalRecordV2:
     results: list[Any]
     error: str | None = None
     best_score: float | None = None
+    diagnostics: dict[str, Any] | None = None
     # Graded metrics (min_grade=2 by default, i.e. grade>=2 counts)
     hit3: float | None = None
     hit5: float | None = None
@@ -70,6 +71,7 @@ def evaluate_query_v2(
         results = retriever.retrieve(query.query, top_k=top_k)
     except Exception as exc:
         error = str(exc)
+    diagnostics = getattr(retriever, "last_diagnostics", None)
 
     best_score = results[0].score if results else None
 
@@ -82,6 +84,7 @@ def evaluate_query_v2(
             results=results,
             error=error,
             best_score=best_score,
+            diagnostics=diagnostics if isinstance(diagnostics, dict) else None,
         )
 
     rc = query.relevant_chunks  # {chunk_id: grade}
@@ -101,6 +104,7 @@ def evaluate_query_v2(
         results=results,
         error=error,
         best_score=best_score,
+        diagnostics=diagnostics if isinstance(diagnostics, dict) else None,
         hit3=compute_hit_at_k_v2(results, rc, 3, min_grade),
         hit5=compute_hit_at_k_v2(results, rc, 5, min_grade),
         hit10=compute_hit_at_k_v2(results, rc, 10, min_grade),
@@ -336,6 +340,7 @@ def run_evaluation_v2(
         "per_category": per_category,
         "per_difficulty": per_difficulty,
         "Average_top1_similarity": avg_top1,
+        "Average_top1_score": avg_top1,
         "errors": [(r.index, r.query.query, r.error) for r in records if r.error],
         "min_grade": min_grade,
     }

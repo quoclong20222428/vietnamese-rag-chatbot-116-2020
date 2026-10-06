@@ -54,6 +54,16 @@ if __package__:
     from .evaluation.reporting import render_full_report_v2
     from .evaluation.matching import _is_legal_source
     from .evaluation.metrics import _get_chunk_id
+    from .retrievers.hybrid import (
+        DEFAULT_CANDIDATE_K,
+        DEFAULT_FINAL_TOP_K,
+        DEFAULT_RRF_K,
+    )
+    from .retrievers.reranker import (
+        CrossEncoderReranker,
+        DEFAULT_RERANK_MODEL,
+        DEFAULT_RERANK_TOP_K,
+    )
 else:
     from environment import load_dotenv as _load_env_file, require_database_url
     from evaluation.eval_queries_v2 import EVAL_QUERIES_V2
@@ -61,6 +71,16 @@ else:
     from evaluation.reporting import render_full_report_v2
     from evaluation.matching import _is_legal_source
     from evaluation.metrics import _get_chunk_id
+    from retrievers.hybrid import (
+        DEFAULT_CANDIDATE_K,
+        DEFAULT_FINAL_TOP_K,
+        DEFAULT_RRF_K,
+    )
+    from retrievers.reranker import (
+        CrossEncoderReranker,
+        DEFAULT_RERANK_MODEL,
+        DEFAULT_RERANK_TOP_K,
+    )
 
 LOGGER = logging.getLogger("test_retrieval")
 
@@ -134,7 +154,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=10,
+        default=DEFAULT_FINAL_TOP_K,
         metavar="N",
         help="Number of results to retrieve per query (default: 10).",
     )
@@ -156,10 +176,80 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--method",
         type=str,
         default="hnsw",
-        choices=["hnsw", "bm25"],
+        choices=["hnsw", "bm25", "hybrid"],
         help="Retrieval method to use (default: hnsw).",
     )
+    parser.add_argument(
+        "--candidate-k",
+        type=int,
+        default=DEFAULT_CANDIDATE_K,
+        metavar="N",
+        help=f"Candidates requested from each retriever in hybrid mode (default: {DEFAULT_CANDIDATE_K}).",
+    )
+    parser.add_argument(
+        "--rrf-k",
+        type=int,
+        default=DEFAULT_RRF_K,
+        metavar="N",
+        help=f"RRF rank constant in hybrid mode (default: {DEFAULT_RRF_K}).",
+    )
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        default=False,
+        help=(
+            "Apply Cross-Encoder re-ranking after hybrid retrieval. "
+            "Only valid with --method hybrid."
+        ),
+    )
+    parser.add_argument(
+        "--rerank-model",
+        type=str,
+        default=DEFAULT_RERANK_MODEL,
+        metavar="MODEL",
+        help=f"HuggingFace Cross-Encoder model for re-ranking (default: {DEFAULT_RERANK_MODEL}).",
+    )
+    parser.add_argument(
+        "--rerank-top-k",
+        type=int,
+        default=DEFAULT_RERANK_TOP_K,
+        metavar="N",
+        help=f"Number of results to keep after re-ranking (default: {DEFAULT_RERANK_TOP_K}).",
+    )
     return parser.parse_args(argv)
+
+
+def _build_retriever(
+    method: str,
+    database_url: str,
+    ef_search: int,
+    candidate_k: int,
+    rrf_k: int,
+) -> tuple[Any, Any | None, Any | None]:
+    """Build the selected retriever and return its dense/sparse components."""
+    if __package__:
+        from .retrievers.bm25 import BM25Retriever
+        from .retrievers.hnsw import Retriever as HNSWRetriever
+        from .retrievers.hybrid import HybridRetriever
+    else:
+        from retrievers.bm25 import BM25Retriever
+        from retrievers.hnsw import Retriever as HNSWRetriever
+        from retrievers.hybrid import HybridRetriever
+
+    if method == "bm25":
+        sparse = BM25Retriever(database_url=database_url)
+        return sparse, None, sparse
+    if method == "hybrid":
+        dense = HNSWRetriever(database_url=database_url, ef_search=ef_search)
+        sparse = BM25Retriever(database_url=database_url)
+        hybrid = HybridRetriever(
+            {"hnsw": dense, "bm25": sparse},
+            candidate_k=candidate_k,
+            rrf_k=rrf_k,
+        )
+        return hybrid, dense, sparse
+    dense = HNSWRetriever(database_url=database_url, ef_search=ef_search)
+    return dense, dense, None
 
 
 # ---------------------------------------------------------------------------
@@ -167,14 +257,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def _run_adhoc_query(retriever: Any, query: str, top_k: int) -> int:
-    """Retrieve top-K results for *query* and print them; no metrics, no file."""
+def _run_adhoc_query(
+    retriever: Any,
+    query: str,
+    top_k: int,
+    *,
+    reranker: Any | None = None,
+) -> int:
+    """Retrieve top-K results for *query* and print them; no metrics, no file.
+
+    If *reranker* is provided (a ``CrossEncoderReranker`` instance), the
+    retrieval candidates are re-scored and trimmed to ``reranker.rerank_top_k``
+    before printing.
+    """
     print()
     print("=" * 60)
     print("AD-HOC QUERY")
     print("=" * 60)
     print(f"Query:  {query}")
     print(f"Top-K:  {top_k}")
+    if reranker is not None:
+        print(f"Re-ranker: {reranker.model_name} (rerank_top_k={reranker.rerank_top_k})")
     print()
 
     try:
@@ -182,6 +285,14 @@ def _run_adhoc_query(retriever: Any, query: str, top_k: int) -> int:
     except Exception as exc:
         print(f"[ERROR] Retrieval failed: {exc}")
         return 1
+
+    # Apply re-ranking if requested.
+    if reranker is not None and results:
+        try:
+            results = reranker.rerank(query, results)
+        except Exception as exc:
+            print(f"[ERROR] Re-ranking failed: {exc}")
+            return 1
 
     if not results:
         print("(no results returned)")
@@ -198,6 +309,28 @@ def _run_adhoc_query(retriever: Any, query: str, top_k: int) -> int:
         print(f"Rank {rank}")
         print(f"Score:    {score_str}")
         print(f"Chunk ID: {chunk_id}")
+        fusion = meta.get("retrieval_diagnostics") or {}
+        if fusion:
+            # Cross-Encoder re-ranking diagnostics (if --rerank was used).
+            pre_score = fusion.get("pre_rerank_score")
+            pre_rank = fusion.get("pre_rerank_rank")
+            reranker_model = fusion.get("reranker_model")
+            if reranker_model:
+                print(f"CE score:         {score_str}")
+                if pre_score is not None:
+                    print(f"Pre-rerank score: {pre_score:.6f} (rank {pre_rank})")
+                print(f"Re-ranker:        {reranker_model}")
+            # RRF fusion diagnostics.
+            rrf_score = fusion.get("pre_rerank_score") if reranker_model else fusion.get("rrf_score", score_str)
+            source_ranks = fusion.get("source_ranks", {})
+            if source_ranks:
+                print(f"RRF score: {fusion.get('rrf_score', rrf_score)}")
+                print(
+                    "Source ranks: " + ", ".join(
+                        f"{name}={value if value is not None else 'not retrieved'}"
+                        for name, value in source_ranks.items()
+                    )
+                )
 
         if _is_legal_source(meta):
             if meta.get("document_title"):
@@ -251,27 +384,30 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         try:
-            if args.method == "bm25":
-                if __package__:
-                    from .retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
-                else:
-                    from retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
-            else:
-                if __package__:
-                    from .retrievers.hnsw import Retriever  # noqa: PLC0415
-                else:
-                    from retrievers.hnsw import Retriever  # noqa: PLC0415
-        except ImportError as exc:
-            print(f"ERROR: Could not import retrieval module: {exc}")
+            retriever, _, _ = _build_retriever(
+                args.method, database_url, args.ef_search,
+                args.candidate_k, args.rrf_k,
+            )
+        except (ImportError, ValueError) as exc:
+            print(f"ERROR: Could not initialise retriever: {exc}")
             return 1
 
-        if args.method == "bm25":
-            retriever = Retriever(database_url=database_url)
-        else:
-            retriever = Retriever(
-                database_url=database_url, ef_search=args.ef_search
-            )
-        return _run_adhoc_query(retriever, args.query, args.top_k)
+        # Optionally wrap with re-ranker for ad-hoc mode.
+        reranker: CrossEncoderReranker | None = None
+        if args.rerank:
+            if args.method != "hybrid":
+                print("WARNING: --rerank is only meaningful with --method hybrid. Ignoring.")
+            else:
+                try:
+                    reranker = CrossEncoderReranker(
+                        model_name=args.rerank_model,
+                        rerank_top_k=args.rerank_top_k,
+                    )
+                except (ImportError, ValueError) as exc:
+                    print(f"ERROR: Could not initialise re-ranker: {exc}")
+                    return 1
+
+        return _run_adhoc_query(retriever, args.query, args.top_k, reranker=reranker)
 
 
     try:
@@ -282,36 +418,31 @@ def main(argv: list[str] | None = None) -> int:
 
     database_name = _get_database_name(database_url)
 
-    try:
-        if args.method == "bm25":
-            if __package__:
-                from .retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
-            else:
-                from retrievers.bm25 import BM25Retriever as Retriever  # noqa: PLC0415
-        else:
-            if __package__:
-                from .retrievers.hnsw import Retriever  # noqa: PLC0415
-            else:
-                from retrievers.hnsw import Retriever  # noqa: PLC0415
-    except ImportError as exc:
-        print(f"ERROR: Could not import retrieval module: {exc}")
-        return 1
-
     print("\n" + "=" * 60)
     print("RETRIEVAL EVALUATION (EvalQueryV2)")
     print("=" * 60)
     print(f"Method:     {args.method.upper()}")
     print(f"Top-K:      {args.top_k}")
-    if args.method == "hnsw":
+    if args.method in ("hnsw", "hybrid"):
         print(f"ef_search:  {args.ef_search}")
+    if args.method == "hybrid":
+        print(f"candidate_k: {args.candidate_k}")
+        print(f"RRF k:       {args.rrf_k}")
+        if args.rerank:
+            print(f"Re-ranker:   {args.rerank_model}")
+            print(f"Rerank top-k: {args.rerank_top_k}")
     print(f"min_grade:  {args.min_grade}")
     print(f"Dataset:    EvalQueryV2 ({len(EVAL_QUERIES_V2)} queries)")
     print("INFO: Initialising retriever...")
 
-    if args.method == "bm25":
-        retriever = Retriever(database_url=database_url)
-    else:
-        retriever = Retriever(database_url=database_url, ef_search=args.ef_search)
+    try:
+        retriever, dense_retriever, sparse_retriever = _build_retriever(
+            args.method, database_url, args.ef_search,
+            args.candidate_k, args.rrf_k,
+        )
+    except (ImportError, ValueError) as exc:
+        print(f"ERROR: Could not initialise retriever: {exc}")
+        return 1
     if args.method == "bm25":
         model_name = "BM25"
         model_alias = "Okapi BM25"
@@ -323,6 +454,19 @@ def main(argv: list[str] | None = None) -> int:
             "backend": "rank_bm25",
             "embedding_column": "N/A",
             "embedding_dim": embedding_dim,
+        }
+    elif args.method == "hybrid":
+        dense_meta = _get_model_metadata(dense_retriever)
+        _rerank_suffix = f" + {args.rerank_model} Re-rank" if args.rerank else ""
+        model_name = f"Hybrid_{dense_meta['model_name']}"
+        model_alias = f"Hybrid RRF ({dense_meta['model_alias']} + BM25){_rerank_suffix}"
+        embedding_dim = dense_meta["embedding_dim"]
+        device = dense_retriever.device
+        model_meta = {
+            **dense_meta,
+            "model_name": model_name,
+            "model_alias": model_alias,
+            "backend": "HNSW (pgvector) + rank_bm25" + (_rerank_suffix or ""),
         }
     else:
         model_meta = _get_model_metadata(retriever)
@@ -346,18 +490,58 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Embedding device: {device}")
 
     print("\n--- Database State ---")
-    if hasattr(retriever, "verify_database_state"):
-        state = retriever.verify_database_state()
+    state_retriever = dense_retriever or sparse_retriever or retriever
+    if hasattr(state_retriever, "verify_database_state"):
+        state = state_retriever.verify_database_state()
         print(f"Total chunks:       {state['total_chunks']}")
         print(f"Embedded chunks:    {state['embedded_chunks']}")
         print(f"Missing embeddings: {state['missing_embeddings']}")
         print(f"HNSW index exists:  {state['hnsw_index_exists']}")
     else:
-        state = {"total_chunks": getattr(retriever, "corpus_size", "N/A")}
+        state = {"total_chunks": getattr(state_retriever, "corpus_size", "N/A")}
         print(f"Total chunks:       {state['total_chunks']}")
 
     queries = EVAL_QUERIES_V2
     print(f"\nRunning {len(queries)} evaluation queries...\n")
+
+    # Build re-ranker if requested (hybrid only).
+    reranker_for_eval: CrossEncoderReranker | None = None
+    if args.rerank:
+        if args.method != "hybrid":
+            print("WARNING: --rerank is only meaningful with --method hybrid. Ignoring.")
+        else:
+            print("INFO: Initialising Cross-Encoder re-ranker ...")
+            try:
+                reranker_for_eval = CrossEncoderReranker(
+                    model_name=args.rerank_model,
+                    rerank_top_k=args.rerank_top_k,
+                )
+            except (ImportError, ValueError) as exc:
+                print(f"ERROR: Could not initialise re-ranker: {exc}")
+                return 1
+
+    # If re-ranking is active, wrap the retriever so run_evaluation_v2 sees a
+    # single object with a .retrieve(query, top_k) interface that first fetches
+    # top_k candidates then re-ranks them down to rerank_top_k.
+    eval_retriever = retriever
+    eval_top_k = args.top_k
+    if reranker_for_eval is not None:
+
+        class _RerankedRetriever:
+            """Thin wrapper: HybridRetriever + CrossEncoderReranker."""
+
+            def __init__(self, base: Any, rr: CrossEncoderReranker) -> None:
+                self._base = base
+                self._rr = rr
+
+            def retrieve(self, query: str, top_k: int) -> list[Any]:
+                candidates = self._base.retrieve(query, top_k=top_k)
+                return self._rr.rerank(query, candidates)
+
+        eval_retriever = _RerankedRetriever(retriever, reranker_for_eval)
+        # After re-ranking the result list has at most rerank_top_k items;
+        # pass that as top_k so metrics are computed over the final list size.
+        eval_top_k = args.rerank_top_k
 
     query_records: list[QueryEvalRecordV2] = []
     metrics: dict[str, Any] = {}
@@ -365,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         metrics = run_evaluation_v2(
-            queries, retriever, top_k=args.top_k, min_grade=args.min_grade
+            queries, eval_retriever, top_k=eval_top_k, min_grade=args.min_grade
         )
         query_records = metrics.get("query_records", [])
     except BaseException as exc:
@@ -384,11 +568,27 @@ def main(argv: list[str] | None = None) -> int:
             embedding_dim=embedding_dim,
             backend=model_meta["backend"],
             embedding_column=model_meta["embedding_column"],
-            retriever="BM25 (rank_bm25)" if args.method == "bm25" else "HNSW (pgvector)",
+            retriever={
+                "bm25": "BM25 (rank_bm25)",
+                "hnsw": "HNSW (pgvector)",
+                "hybrid": (
+                    f"Hybrid RRF (HNSW pgvector + BM25 rank_bm25) + "
+                    f"CrossEncoder ({args.rerank_model}) Re-rank"
+                    if args.rerank
+                    else "Hybrid RRF (HNSW pgvector + BM25 rank_bm25)"
+                ),
+            }[args.method],
             start_time=start_time,
             end_time=end_time,
             top_k=args.top_k,
-            ef_search=args.ef_search,
+            ef_search=args.ef_search if args.method in ("hnsw", "hybrid") else None,
+            candidate_k=args.candidate_k if args.method == "hybrid" else None,
+            rrf_k=args.rrf_k if args.method == "hybrid" else None,
+            top1_score_label={
+                "hnsw": "Average Top-1 cosine similarity (diagnostic only)",
+                "bm25": "Average Top-1 BM25 score (diagnostic only)",
+                "hybrid": "Average Top-1 RRF score (diagnostic only)",
+            }[args.method],
             cli_args_str=cli_args_str,
             state=state if 'state' in dir() else None,
             database_name=database_name,
@@ -413,8 +613,11 @@ def main(argv: list[str] | None = None) -> int:
             value = metrics.get(metric)
             if value is not None:
                 print(f"{metric:<14}: {value:.4f}")
-    if metrics.get("Average_top1_similarity") is not None:
-        print(f"Avg top-1 sim: {metrics['Average_top1_similarity']:.6f}")
+    if metrics.get("Average_top1_score") is not None:
+        print(
+            f"Avg top-1 score (diagnostic only): "
+            f"{metrics['Average_top1_score']:.6f}"
+        )
 
     print("\n" + "=" * 60)
     print("Evaluation completed.")

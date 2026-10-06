@@ -105,13 +105,9 @@ Environment variables
 DATABASE_URL
     PostgreSQL connection URL.  Loaded from ``.env`` if not set.
 
-What is NOT implemented yet
----------------------------
-- Hybrid retrieval (BM25 + HNSW): planned as a separate future step.
-- Reciprocal Rank Fusion (RRF): planned as a separate future step.
-- Reranking: planned as a separate future step.
-- Score normalisation for cross-method comparison: needed only for hybrid
-  retrieval and will be implemented when RRF is introduced.
+BM25 remains an independent retriever. Hybrid retrieval composes this class
+with the HNSW retriever in ``hybrid.py`` and fuses ranks without comparing raw
+BM25 and cosine scores.
 """
 
 from __future__ import annotations
