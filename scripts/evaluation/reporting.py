@@ -375,6 +375,24 @@ def render_full_report_v2(
         lines.append(f"Category:   {query.category}")
         lines.append(f"Difficulty: {query.difficulty}")
         lines.append(f"Answerable: {'yes' if query.is_answerable else 'no'}")
+        # Multi-chunk: >1 chunks with grade=3 needed to fully answer
+        n_core = sum(1 for g in query.relevant_chunks.values() if g == 3)
+        lines.append(
+            f"Multi-chunk: {'yes' if n_core > 1 else 'no'}"
+            f"  ({n_core} core chunk{'s' if n_core != 1 else ''} with grade=3)"
+        )
+        # Multi-document: grade>=2 chunks (relevant evidence) span >=2 official
+        # legal documents. QA chunks are excluded per requires_multi_document semantics.
+        relevant_legal_docs = {
+            cid.split("-dieu-")[0]
+            for cid, g in query.relevant_chunks.items()
+            if g >= 2 and not cid.startswith("hoi-dap")
+        }
+        n_docs = len(relevant_legal_docs)
+        lines.append(
+            f"Multi-document: {'yes' if n_docs >= 2 else 'no'}"
+            f"  ({n_docs} legal document{'s' if n_docs != 1 else ''} with grade>=2 chunks)"
+        )
         lines.append(f"Question:   {query.query}")
         if query.description:
             lines.append(f"Info need:  {query.description}")
