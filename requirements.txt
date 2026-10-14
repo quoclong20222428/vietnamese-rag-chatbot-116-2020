@@ -50,6 +50,9 @@ numpy>=1.24.0
 pytest>=8.0.0
 
 # LLM generation: Official Google Generative AI Python SDK (scripts/generator/gemini.py).
-# Used by scripts/rag_pipeline.py to call the Gemini API.
+# Used by scripts/rag_pipeline.py to call the Gemini API (LLM_PROVIDER=gemini).
 google-genai>=1.0.0
+
+# OpenRouter provider (scripts/generator/openrouter.py, LLM_PROVIDER=openrouter) uses
+# Python's stdlib urllib only — no additional dependencies are required.
 

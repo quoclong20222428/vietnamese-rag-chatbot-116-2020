@@ -473,7 +473,7 @@ class RAGPipeline:
         user_prompt = build_user_prompt(question, context_text)
 
         # Step 5: Generate the answer.
-        LOGGER.debug("Requesting generation from Gemini.")
+        LOGGER.debug("Requesting generation from LLM provider.")
         try:
             answer = self._generator.generate(
                 system_instruction=SYSTEM_PROMPT,
@@ -506,6 +506,7 @@ def build_pipeline(
     rerank: bool = DEFAULT_RERANK,
     rerank_model: str = DEFAULT_RERANK_MODEL,
     rerank_top_k: int = DEFAULT_RERANK_TOP_K,
+    llm_provider: str | None = None,
 ) -> RAGPipeline:
     """Build and return a fully initialised :class:`RAGPipeline`.
 
@@ -537,14 +538,29 @@ def build_pipeline(
         HuggingFace Cross-Encoder model identifier.
         Default: :data:`config.RERANK_MODEL` (``BAAI/bge-reranker-v2-m3``).
     rerank_top_k:
-        Chunks kept after reranking and forwarded to Gemini.
+        Chunks kept after reranking and forwarded to the LLM generator.
         Default: :data:`config.RERANK_TOP_K` (10).
+    llm_provider:
+        LLM provider to use for answer generation.  Accepted values:
+        ``"gemini"`` (default) and ``"openrouter"``.
+        If ``None``, falls back to the ``LLM_PROVIDER`` environment variable,
+        then to ``"gemini"``.
 
     Returns
     -------
     RAGPipeline
         Ready to accept queries via :meth:`RAGPipeline.query`.
     """
+    # Load .env early so LLM_PROVIDER (and other vars) are available before
+    # any client is instantiated.  This must happen before the provider-selection
+    # block below; individual clients also call load_dotenv() as a safety net.
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if (__package__ or "").startswith("scripts"):
+        from .environment import load_dotenv as _load_dotenv  # noqa: PLC0415
+    else:
+        from environment import load_dotenv as _load_dotenv  # noqa: PLC0415
+    _load_dotenv(_env_path)
+
     # Resolve imports relative to the package root the module is loaded from.
     # __package__ == "scripts"   → imported as `from scripts.rag_pipeline import …`
     # __package__ == "" or None  → scripts/ is on sys.path (flat import)
@@ -553,21 +569,36 @@ def build_pipeline(
         # rag_pipeline.py is directly inside scripts/, so siblings are .retrievers
         # and .generator — NOT ..retrievers (that would go up to project root).
         from .generator.gemini import GeminiClient  # noqa: PLC0415
+        from .generator.openrouter import OpenRouterClient  # noqa: PLC0415
         from .retrievers.hnsw import Retriever  # noqa: PLC0415
         from .retrievers.bm25 import BM25Retriever  # noqa: PLC0415
         from .retrievers.hybrid import HybridRetriever  # noqa: PLC0415
         from .retrievers.reranker import CrossEncoderReranker  # noqa: PLC0415
     else:
         from generator.gemini import GeminiClient  # noqa: PLC0415
+        from generator.openrouter import OpenRouterClient  # noqa: PLC0415
         from retrievers.hnsw import Retriever  # noqa: PLC0415
         from retrievers.bm25 import BM25Retriever  # noqa: PLC0415
         from retrievers.hybrid import HybridRetriever  # noqa: PLC0415
         from retrievers.reranker import CrossEncoderReranker  # noqa: PLC0415
 
+    # Resolve LLM provider: argument → env var → default.
+    _provider = (
+        llm_provider
+        or os.environ.get("LLM_PROVIDER", "").strip().lower()
+        or "gemini"
+    )
+    _valid_providers = {"gemini", "openrouter"}
+    if _provider not in _valid_providers:
+        raise ValueError(
+            f"Unknown LLM_PROVIDER {_provider!r}. "
+            f"Valid options: {sorted(_valid_providers)}"
+        )
+
     LOGGER.info(
         "Building pipeline — candidate_k=%d, top_k=%d, rrf_k=%d, "
-        "ef_search=%d, rerank=%s, rerank_top_k=%d",
-        candidate_k, top_k, rrf_k, ef_search, rerank, rerank_top_k,
+        "ef_search=%d, rerank=%s, rerank_top_k=%d, llm_provider=%s",
+        candidate_k, top_k, rrf_k, ef_search, rerank, rerank_top_k, _provider,
     )
 
     hnsw = Retriever(database_url=database_url, model_name=model_name, ef_search=ef_search)
@@ -581,7 +612,11 @@ def build_pipeline(
         model_name=rerank_model,
         rerank_top_k=rerank_top_k,
     ) if rerank else None
-    generator = GeminiClient()
+
+    if _provider == "openrouter":
+        generator = OpenRouterClient()
+    else:
+        generator = GeminiClient()
 
     return RAGPipeline(
         retriever=retriever,

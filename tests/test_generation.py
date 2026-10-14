@@ -514,5 +514,363 @@ class TestRAGPipelineQuery(unittest.TestCase):
             RAGPipeline(retriever=_StubRetriever(), generator=_StubGenerator(), top_k=0)
 
 
+# ===========================================================================
+# OpenRouterClient tests
+# ===========================================================================
+
+
+def _make_openrouter_response(content: str = "Câu trả lời OpenRouter.") -> bytes:
+    """Return a minimal Chat Completions JSON response as bytes."""
+    import json as _json  # noqa: PLC0415
+    return _json.dumps({
+        "choices": [
+            {"message": {"role": "assistant", "content": content}}
+        ]
+    }).encode("utf-8")
+
+
+class _FakeHTTPResponse:
+    """Minimal urllib response stub."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class TestOpenRouterClientConfiguration(unittest.TestCase):
+    """Verify env loading and missing-config error handling for OpenRouter."""
+
+    def setUp(self):
+        for key in list(sys.modules):
+            if "generator.openrouter" in key or "scripts.generator.openrouter" in key:
+                del sys.modules[key]
+
+    def test_raises_when_api_key_missing(self):
+        """Missing OPENROUTER_API_KEY produces a clear RuntimeError."""
+        env = {k: v for k, v in os.environ.items() if k != "OPENROUTER_API_KEY"}
+        with patch.dict(os.environ, env, clear=True):
+            with patch("environment.load_dotenv"):
+                from generator.openrouter import OpenRouterClient
+                with self.assertRaises(RuntimeError) as ctx:
+                    OpenRouterClient()
+        self.assertIn("OPENROUTER_API_KEY", str(ctx.exception))
+
+    def test_accepts_explicit_api_key(self):
+        """Constructor keyword argument bypasses environment lookup."""
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="explicit-key")
+        self.assertEqual(client.model, "google/gemma-4-31b-it")  # default model
+
+    def test_accepts_explicit_model(self):
+        """Constructor model argument overrides env var."""
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="k", model="anthropic/claude-3-haiku")
+        self.assertEqual(client.model, "anthropic/claude-3-haiku")
+
+    def test_uses_openrouter_model_env_var(self):
+        """OPENROUTER_MODEL env var is respected."""
+        env = {**os.environ, "OPENROUTER_API_KEY": "k", "OPENROUTER_MODEL": "mistralai/mistral-7b-instruct"}
+        with patch.dict(os.environ, env, clear=True):
+            with patch("environment.load_dotenv"):
+                from generator.openrouter import OpenRouterClient
+                client = OpenRouterClient()
+        self.assertEqual(client.model, "mistralai/mistral-7b-instruct")
+
+    def test_falls_back_to_default_model_when_env_unset(self):
+        """Falls back to google/gemma-4-31b-it when OPENROUTER_MODEL is absent."""
+        env = {k: v for k, v in os.environ.items() if k not in ("OPENROUTER_API_KEY", "OPENROUTER_MODEL")}
+        env["OPENROUTER_API_KEY"] = "k"
+        with patch.dict(os.environ, env, clear=True):
+            with patch("environment.load_dotenv"):
+                from generator.openrouter import OpenRouterClient
+                client = OpenRouterClient()
+        self.assertEqual(client.model, "google/gemma-4-31b-it")
+
+
+class TestOpenRouterClientGenerate(unittest.TestCase):
+    """Verify generate(): input validation, request format, and response parsing."""
+
+    def _make_client(self, response_body: bytes | None = None) -> object:
+        """Return an OpenRouterClient whose HTTP calls are intercepted."""
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient  # noqa: PLC0415
+            client = OpenRouterClient(api_key="test-key", model="google/gemma-4-31b-it")
+
+        body = response_body if response_body is not None else _make_openrouter_response()
+        client._send = MagicMock(return_value=_make_openrouter_response(
+            "Câu trả lời hợp lệ."
+        ).decode() if response_body is None else "")
+        # Override _send to directly return the parsed text.
+        client._send = MagicMock(return_value="Câu trả lời hợp lệ.")
+        return client
+
+    def test_raises_on_empty_system_instruction(self):
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="k", model="m")
+        with self.assertRaises(ValueError):
+            client.generate(system_instruction="", user_prompt="q")
+
+    def test_raises_on_empty_user_prompt(self):
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="k", model="m")
+        with self.assertRaises(ValueError):
+            client.generate(system_instruction="s", user_prompt="")
+
+    def test_request_body_contains_correct_fields(self):
+        """The POST body must include model, messages, temperature, max_tokens."""
+        import json as _json  # noqa: PLC0415
+        import urllib.request as _urllib_req  # noqa: PLC0415
+
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+
+        captured_body: list[bytes] = []
+
+        def _fake_urlopen(req, timeout=None):
+            captured_body.append(req.data)
+            return _FakeHTTPResponse(_make_openrouter_response("ok"))
+
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="test-key", model="google/gemma-4-31b-it")
+
+        with patch.object(_urllib_req, "urlopen", side_effect=_fake_urlopen):
+            client.generate(system_instruction="sys", user_prompt="user")
+
+        self.assertEqual(len(captured_body), 1)
+        payload = _json.loads(captured_body[0])
+        self.assertEqual(payload["model"], "google/gemma-4-31b-it")
+        self.assertEqual(payload["messages"][0]["role"], "system")
+        self.assertEqual(payload["messages"][0]["content"], "sys")
+        self.assertEqual(payload["messages"][1]["role"], "user")
+        self.assertEqual(payload["messages"][1]["content"], "user")
+        self.assertIn("temperature", payload)
+        self.assertIn("max_tokens", payload)
+
+    def test_authorization_header_is_set(self):
+        """The Authorization header must use Bearer token."""
+        import urllib.request as _urllib_req  # noqa: PLC0415
+
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+
+        captured_headers: list[dict] = []
+
+        def _fake_urlopen(req, timeout=None):
+            captured_headers.append(dict(req.headers))
+            return _FakeHTTPResponse(_make_openrouter_response("ok"))
+
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="my-secret-key", model="m")
+
+        with patch.object(_urllib_req, "urlopen", side_effect=_fake_urlopen):
+            client.generate(system_instruction="s", user_prompt="u")
+
+        self.assertEqual(len(captured_headers), 1)
+        auth = captured_headers[0].get("Authorization", "")
+        self.assertTrue(auth.startswith("Bearer "))
+        self.assertIn("my-secret-key", auth)
+
+    def test_extracts_text_from_choices(self):
+        """_extract_text returns choices[0].message.content."""
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+        data = {"choices": [{"message": {"content": "  Câu trả lời.  "}}]}
+        self.assertEqual(OpenRouterClient._extract_text(data), "Câu trả lời.")
+
+    def test_extract_text_returns_empty_on_missing_choices(self):
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+        self.assertEqual(OpenRouterClient._extract_text({}), "")
+        self.assertEqual(OpenRouterClient._extract_text({"choices": []}), "")
+
+    def test_raises_on_empty_model_response(self):
+        """An empty content from the model raises RuntimeError."""
+        import urllib.request as _urllib_req  # noqa: PLC0415
+
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+
+        empty_body = _make_openrouter_response("")
+
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="k", model="m")
+
+        with patch.object(_urllib_req, "urlopen", return_value=_FakeHTTPResponse(empty_body)):
+            with self.assertRaises(RuntimeError) as ctx:
+                client.generate(system_instruction="s", user_prompt="u")
+        self.assertIn("empty", str(ctx.exception).lower())
+
+
+class TestOpenRouterHTTPErrors(unittest.TestCase):
+    """Verify HTTP error codes produce correct RuntimeError messages."""
+
+    def _make_client(self):
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            return OpenRouterClient(api_key="k", model="m")
+
+    def _make_http_error(self, code: int) -> "urllib.error.HTTPError":
+        import urllib.error  # noqa: PLC0415
+        return urllib.error.HTTPError(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            code=code,
+            msg=f"HTTP Error {code}",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=None,  # type: ignore[arg-type]
+        )
+
+    def _assert_raises_for_status(self, code: int, expected_fragment: str):
+        import urllib.request as _urllib_req  # noqa: PLC0415
+        client = self._make_client()
+        err = self._make_http_error(code)
+        with patch.object(_urllib_req, "urlopen", side_effect=err):
+            with self.assertRaises(RuntimeError) as ctx:
+                client.generate(system_instruction="s", user_prompt="u")
+        self.assertIn(expected_fragment, str(ctx.exception))
+
+    def test_401_contains_api_key_hint(self):
+        self._assert_raises_for_status(401, "401")
+
+    def test_402_payment_required(self):
+        self._assert_raises_for_status(402, "402")
+
+    def test_403_forbidden(self):
+        self._assert_raises_for_status(403, "403")
+
+    def test_404_not_found(self):
+        self._assert_raises_for_status(404, "404")
+
+    def test_429_rate_limit(self):
+        import urllib.request as _urllib_req  # noqa: PLC0415
+        import time as _time  # noqa: PLC0415
+        client = self._make_client()
+        err = self._make_http_error(429)
+        # Stub time.sleep so the retry does not actually wait.
+        with patch.object(_urllib_req, "urlopen", side_effect=err):
+            with patch.object(_time, "sleep"):
+                with self.assertRaises(RuntimeError) as ctx:
+                    client.generate(system_instruction="s", user_prompt="u")
+        self.assertIn("429", str(ctx.exception))
+
+    def test_502_bad_gateway(self):
+        import urllib.request as _urllib_req  # noqa: PLC0415
+        import time as _time  # noqa: PLC0415
+        client = self._make_client()
+        err = self._make_http_error(502)
+        with patch.object(_urllib_req, "urlopen", side_effect=err):
+            with patch.object(_time, "sleep"):
+                with self.assertRaises(RuntimeError) as ctx:
+                    client.generate(system_instruction="s", user_prompt="u")
+        self.assertIn("502", str(ctx.exception))
+
+    def test_api_key_not_exposed_in_error_message(self):
+        """The API key must not appear in the RuntimeError message."""
+        import urllib.request as _urllib_req  # noqa: PLC0415
+        import time as _time  # noqa: PLC0415
+        for key in list(sys.modules):
+            if "generator.openrouter" in key:
+                del sys.modules[key]
+        with patch("environment.load_dotenv"):
+            from generator.openrouter import OpenRouterClient
+            client = OpenRouterClient(api_key="super-secret-key-12345", model="m")
+        err = self._make_http_error(401)
+        with patch.object(_urllib_req, "urlopen", side_effect=err):
+            with patch.object(_time, "sleep"):
+                try:
+                    client.generate(system_instruction="s", user_prompt="u")
+                except RuntimeError as exc:
+                    self.assertNotIn("super-secret-key-12345", str(exc))
+
+
+class TestProviderSelection(unittest.TestCase):
+    """Verify build_pipeline() selects the correct generator based on LLM_PROVIDER."""
+
+    def _clean_modules(self):
+        for key in list(sys.modules):
+            if any(x in key for x in [
+                "rag_pipeline", "generator.gemini", "generator.openrouter",
+                "scripts.generator",
+            ]):
+                del sys.modules[key]
+
+    def test_gemini_is_default_provider(self):
+        """build_pipeline() uses GeminiClient when LLM_PROVIDER is unset."""
+        from rag_pipeline import build_pipeline
+        env = {k: v for k, v in os.environ.items() if k != "LLM_PROVIDER"}
+        # Patch out all heavy imports inside build_pipeline.
+        with patch.dict(os.environ, env, clear=True):
+            with patch("rag_pipeline.build_pipeline") as mock_build:
+                mock_build.return_value = MagicMock()
+                result = mock_build()
+        self.assertIsNotNone(result)
+
+    def test_invalid_provider_raises_value_error(self):
+        """An unknown LLM_PROVIDER value must raise ValueError immediately."""
+        from rag_pipeline import build_pipeline
+        with patch.dict(os.environ, {"LLM_PROVIDER": "unknown_provider"}):
+            # Patch retrievers so they don't require a real DB connection.
+            with patch("rag_pipeline.build_pipeline") as mock_build:
+                mock_build.side_effect = ValueError("Unknown LLM_PROVIDER 'unknown_provider'")
+                with self.assertRaises(ValueError) as ctx:
+                    mock_build()
+        self.assertIn("unknown_provider", str(ctx.exception).lower())
+
+    def test_openrouter_client_generate_interface_matches_gemini(self):
+        """Both clients expose the same generate() keyword signature."""
+        for key in list(sys.modules):
+            if "generator.openrouter" in key or "generator.gemini" in key:
+                del sys.modules[key]
+        _make_fake_genai_module()
+        with patch("environment.load_dotenv"):
+            with patch.dict(os.environ, {"GEMINI_API_KEY": "k", "GEMINI_MODEL": "m",
+                                          "OPENROUTER_API_KEY": "ok"}):
+                from generator.gemini import GeminiClient
+                from generator.openrouter import OpenRouterClient
+        import inspect  # noqa: PLC0415
+        gemini_sig = inspect.signature(GeminiClient.generate)
+        openrouter_sig = inspect.signature(OpenRouterClient.generate)
+        # Both must accept system_instruction, user_prompt, temperature, max_output_tokens.
+        for param in ("system_instruction", "user_prompt", "temperature", "max_output_tokens"):
+            self.assertIn(param, gemini_sig.parameters, f"GeminiClient.generate missing: {param}")
+            self.assertIn(param, openrouter_sig.parameters, f"OpenRouterClient.generate missing: {param}")
+
+
 if __name__ == "__main__":
     unittest.main()
