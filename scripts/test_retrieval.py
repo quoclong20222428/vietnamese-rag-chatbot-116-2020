@@ -54,15 +54,13 @@ if __package__:
     from .evaluation.reporting import render_full_report_v2
     from .evaluation.matching import _is_legal_source
     from .evaluation.metrics import _get_chunk_id
-    from .retrievers.hybrid import (
-        DEFAULT_CANDIDATE_K,
-        DEFAULT_FINAL_TOP_K,
-        DEFAULT_RRF_K,
-    )
-    from .retrievers.reranker import (
-        CrossEncoderReranker,
-        DEFAULT_RERANK_MODEL,
-        DEFAULT_RERANK_TOP_K,
+    from .retrievers.hybrid import DEFAULT_FINAL_TOP_K
+    from .retrievers.reranker import CrossEncoderReranker
+    from .config import (
+        CANDIDATE_K as DEFAULT_CANDIDATE_K,
+        RRF_K as DEFAULT_RRF_K,
+        RERANK_MODEL as DEFAULT_RERANK_MODEL,
+        RERANK_TOP_K as DEFAULT_RERANK_TOP_K,
     )
 else:
     from environment import load_dotenv as _load_env_file, require_database_url
@@ -71,15 +69,13 @@ else:
     from evaluation.reporting import render_full_report_v2
     from evaluation.matching import _is_legal_source
     from evaluation.metrics import _get_chunk_id
-    from retrievers.hybrid import (
-        DEFAULT_CANDIDATE_K,
-        DEFAULT_FINAL_TOP_K,
-        DEFAULT_RRF_K,
-    )
-    from retrievers.reranker import (
-        CrossEncoderReranker,
-        DEFAULT_RERANK_MODEL,
-        DEFAULT_RERANK_TOP_K,
+    from retrievers.hybrid import DEFAULT_FINAL_TOP_K
+    from retrievers.reranker import CrossEncoderReranker
+    from config import (
+        CANDIDATE_K as DEFAULT_CANDIDATE_K,
+        RRF_K as DEFAULT_RRF_K,
+        RERANK_MODEL as DEFAULT_RERANK_MODEL,
+        RERANK_TOP_K as DEFAULT_RERANK_TOP_K,
     )
 
 LOGGER = logging.getLogger("test_retrieval")

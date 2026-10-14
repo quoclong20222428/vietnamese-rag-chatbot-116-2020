@@ -46,6 +46,10 @@ rank-bm25>=0.2.2
 numpy>=1.24.0
 
 # Testing: Unit test suite (tests/test_embedding.py, tests/test_retrieval.py,
-# tests/test_bm25_retriever.py)
+# tests/test_bm25_retriever.py, tests/test_generation.py)
 pytest>=8.0.0
+
+# LLM generation: Official Google Generative AI Python SDK (scripts/generator/gemini.py).
+# Used by scripts/rag_pipeline.py to call the Gemini API.
+google-genai>=1.0.0
 
